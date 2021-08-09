@@ -2,56 +2,102 @@ import Hyperscript from './h.js'
 import * as Path from './path.js'
 import Component from './component.js'
 
-export default function Z4({ state: __state__={} }){
+export default function Z4({ state: __state__={} }={}){
 	
 	let subscriptions = {}
 	
-	function PathProxy({ state, path=new Path.Path(), proxies={} }){
-		let meta = { state, path }
+	function PathProxy({ getState, path=new Path.Path(), proxies={} }){
+		let meta = { 
+			get state(){ 
+				return getState() 
+			}
+			, path 
+		}
 
 		if( proxies[ path.key ]) {
 			return proxies[ path.key ]
 		}
 
-		let out = new Proxy(function(){}, {
+		let proxyHandler = {
 			get(_, key){
 				if(typeof key == 'symbol' ) { 
-					return state[key]
+					return getState()[key]
 				} else if ( key == 'valueOf' || key == 'toString' ) {
-					return () => state[key]()
+					return () => getState()[key]()
 				} else if (key == '$') {
 					return meta
 				} else if (key == '$type' ) {
 					return 'z4/proxy'
+				} else if (key == '$all') {
+					return () => path.last.get({ getState })
+				} else if ( key == '$values' ) {
+					return PathProxy({
+						getState
+						, path: path.concat([new Path.Traverse(getState)])
+						, proxies
+					})
+				} else if ( key == '$filter' ) {
+					return (...args) => {
+						return PathProxy({
+							getState
+							, path: path.concat([new Path.Filter(getState, ...args)])
+							, proxies
+						})
+					}
+				} else if ( key == '$map' ) {
+					return (...args) => {
+						return PathProxy({
+							getState
+							, path: path.concat([new Path.Transform(getState, ...args)])
+							, proxies
+						})
+					}
+				} else if ( key == '$delete' ) {
+					return () => path.last.remove({ getState })
 				} else {
-
-					__state__
-					if ( state[key] == null ) {
-						state[key] = {}
+					if ( getState()[key] == null ) {
+						getState()[key] = {}
 					}
 
+					let ourGetState = () => getState()[key]
 					return PathProxy({
-						state: state[key]
-						, path: path.concat(key)
+						getState: ourGetState
+						, path: path.concat([ new Path.Property(getState, key) ])
 						, proxies
 					})
 				}
 
 			},
 			set(_, key, value){
-				return Reflect.set(state, key, value)
+				return Reflect.set(getState(), key, value)
 			},
-			apply(_, ...args){
-
-				if( typeof state == 'function' ) {
-					return Reflect.apply(state, ...args)
+			apply(_, thisArg, args){
+				// todo-james come back and clean up 
+				// repeated getState calls, but safely
+				let getState = () => path.last.state
+				getState()
+				if( typeof getState() == 'function' ) {
+					return Reflect.apply(getState(), ...args)
+				} else if (args.length == 0) {
+					return path.last.get({ getState })[0]
+				} else if (typeof args[0] == 'function'){
+					return path.last.set({ getState, value: args[0](getState()) })
+				} else {
+					return path.last.set({ getState, value: args[0] })
 				}
-				return out
 			},
 			deleteProperty(_, key){
-				return Reflect.deleteProperty(state, key)
+				// create child or access child
+				// so things like delete users.$values works
+				let child = out[key]
+				let worked = child.$.path.last.remove({ getState })
+				if( worked ) return worked
+			
+				return path.last.remove({ getState })
 			}
-		})
+		}
+
+		let out = new Proxy(function(){}, proxyHandler)
 		proxies[ path.key ] = out
 		return out
 	}
@@ -86,7 +132,7 @@ export default function Z4({ state: __state__={} }){
 	
 	let values = {}
  
-	let state = PathProxy({ state: __state__ })
+	let state = PathProxy({ getState: () => __state__ })
 
 	function on(event, proxies, visitor){
 		// subscriptions[key] = subscriptions[key] || []

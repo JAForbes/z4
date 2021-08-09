@@ -1,0 +1,24 @@
+{
+  "name": "z4",
+  "version": "0.0.0",
+  "description": "Z4 ==",
+  "main": "app.js",
+  "type": "module",
+  "dependencies": {
+    "tape": "^5.3.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "npx tape test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JAForbes/z4.git"
+  },
+  "author": "JAForbes",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/JAForbes/z4/issues"
+  },
+  "homepage": "https://github.com/JAForbes/z4#readme"
+}
