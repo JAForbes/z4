@@ -50,7 +50,7 @@ test('set', t => {
 
 test('delete', t => {
     let z = Z()
-    z.state.users = [{ id: 1}, {id: 2}, {id: 3}]    
+    z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
 
     delete z.state.users.$values
     t.equals(z.state.$.state.users.length, 0, 'clear list')
@@ -70,3 +70,58 @@ test('delete', t => {
 
     t.end()
 })
+
+test('dependencies', t => {
+    let z = Z()
+    let user = z.state.users
+        .$values
+        .$filter( (x,y) => x.id == y, [z.state.id] )
+
+    z.state.users = [{ id: 1, name: 'a' }, { id: 2, name: 'b' }, { id: 3, name: 'c' }]
+    z.state.id = 2
+
+    t.equals(user().id, 2, 'Filter with dependencies works')
+
+    z.state.symbol = '!!!'
+    let yell = z.state.users
+        .$values
+        .$map( (x,y) => ({ ...x, name: x.name + y }), [z.state.symbol] )
+        
+    t.equals(yell.$all().map( x => x.name ).join('|'), 'a!!!|b!!!|c!!!')
+    t.end()
+})
+
+// test('simple subscriptions', t => {
+//     let z = Z()
+//     let user = z.state.users
+//         .$values
+//         .$filter( (x,y) => x.id == y, [z.state.id] )
+
+//     let called = 0
+//     z.on([user], function(){
+//         called++
+//     })
+//     t.equals(called, 0, 'Subscription not called when tree empty')
+    
+//     z.state.users = [{ id: 1 }, { id: 2 }, { id: 3 }]
+//     z.state.id = 2
+
+//     t.equals(called, 1, 'Subscription called once dep is not empty')
+
+//     z.state.id = 2
+//     t.equals(called, 1, 'Setting a value to itself does not dispatch a notification')
+
+//     state.users = state.users()
+//     t.equals(called, 1, 'Setting a value to itself does not dispatch a notification pt2')
+// })
+// // test('simple subscription', t => {
+    
+// //     let z = Z()
+// //     z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
+// //     z.id = 2
+
+// //     user = z.state
+// //     t.end()
+// // })
+// test('deferrable subscriptions')
+// test('caching')
