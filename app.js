@@ -1,3 +1,10 @@
+import Z from './z.js'
+
+let z = Z({})
+let h = z.hyperscript
+
+window.z = z
+
 function App(){
   
   let state = z.state

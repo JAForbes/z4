@@ -234,3 +234,16 @@ Promises
 --------
 
 Setting a query value to a promise will schedule a write to the tree if the promise resolves.  Much like writing to the tree within services, writing to a query with an async value is not guaranteed to be reflected immediately except if you yield back to the tree.  For this reason it is not recommended to write a Promise to the tree outside of a service. 
+
+Mutation
+--------
+
+Z4 assumes it is the sole entity directly reading and writing from the state.  As a result, Z4 assumes it can mutate the state tree directly.  This may seem heretical given Z4 claims to be functional and takes inspiration from streams & lenses - but let's take a step back.  Why is mutation ever a problem?  If it is so much faster, why would we avoid it?
+
+Usually, we avoid mutation because it can lead to bugs where some component in a large app is modifying the state in an unpredictable or unwanted way, but it is impossible to trace where the change is coming from, and therefore difficult to resolve the bug.  As all entities in the app have direct access to the same state tree there is no safe guards, tracking, or preventative measures.
+
+With Z4, reads and writes all occur through a proxy.  There are no untracked mutations.  This can be guaranteed in development via `Object.freeze` whenever a non primative value is accessed from a query, but it also so convenient to use Z4 correctly that breaking the rules is more awkward than using it properly.
+
+Because Z4 mutates, there is no need to propagate the value of most queries, as they are just lazily accessing the state tree at a given path.  Any dynamic queries are computed on read only if their dependencies reference equality has changed.  This makes the entire system optimized for writes as writing doesn't trigger any state updates.  And because we rely on reference equality when computing dynamic queries we are also optimized for read.
+
+When a state change occurs, Z4 will notify relevant subscriptions, but that is almost all it needs to do.

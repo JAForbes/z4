@@ -1,64 +1,19 @@
-class Path {
-	__parts=[]
-	__key=this.__parts.join('.')
-	constructor(xs=[]){
-		if( typeof xs == 'string' ) xs = xs.split('.')
-		
-		this.parts = xs
-	}
-	get parts() {
-		return this.__parts
-	}
-	set parts(xs){
-		this.__parts = xs
-		this.__key = xs.join('.')
-		return this.__parts
-	}
-	get key(){
-		return this.__key
-	}
-	concat(xs) {
-		if ( xs instanceof Path ) {
-			return new Path( this.parts.concat(xs.parts) ) 
-		}
-		return this.concat(new Path(xs))
-	}
-}
+import Hyperscript from './h.js'
+import * as Path from './path.js'
+import Component from './component.js'
 
-function Component({ attrs: { proxy }}){
+export default function Z4({ state: __state__={} }){
 	
-	let subscription;
-	
-	// todo-james ask barney if this can be a text node instead
-	function view(){ return m('span.z') }
-	function oncreate({ dom }){
-		subscription = proxy.$on('change', value => {
-			m.render(dom, value)
-		})
-		m.render(dom, proxy.$.state)
-	}
-	function onremove(){
-		proxy.$off('change', subscription)
-	}
-	
-	return { view, oncreate, onremove }
-}
-
-
-function Z4({ state: __state__={} }){
-	
-	let proxies = {}
 	let subscriptions = {}
-
 	
-function PathProxy({ state, path=new Path() }){
-	let meta = { state, path }
+	function PathProxy({ state, path=new Path.Path(), proxies={} }){
+		let meta = { state, path }
 
-	if( proxies[ path.key ]) {
-		return proxies[ path.key ]
-	}
+		if( proxies[ path.key ]) {
+			return proxies[ path.key ]
+		}
 
-	let out = new Proxy(function(){}, {
+		let out = new Proxy(function(){}, {
 			get(_, key){
 				if(typeof key == 'symbol' ) { 
 					return state[key]
@@ -66,24 +21,11 @@ function PathProxy({ state, path=new Path() }){
 					return () => state[key]()
 				} else if (key == '$') {
 					return meta
-				} else if (key == 'on') {
-					return (type, f) => {
-						subscriptions[key] = subscriptions[key] || []
-						subscriptions[key].push({ type: 'change', visitor: f })
-					}
-				} else if (key == '$off') {
-					return (type, f) => {
-						if ( key in subscriptions ) {
-							let i = subscriptions[key].findIndex( x => x.visitor == f && x.type == type )  
-							if ( i > -1 ) {
-								subscriptions.splice(i, 1)
-							}
-						}
-					}
 				} else if (key == '$type' ) {
 					return 'z4/proxy'
 				} else {
 
+					__state__
 					if ( state[key] == null ) {
 						state[key] = {}
 					}
@@ -91,6 +33,7 @@ function PathProxy({ state, path=new Path() }){
 					return PathProxy({
 						state: state[key]
 						, path: path.concat(key)
+						, proxies
 					})
 				}
 
@@ -104,6 +47,9 @@ function PathProxy({ state, path=new Path() }){
 					return Reflect.apply(state, ...args)
 				}
 				return out
+			},
+			deleteProperty(_, key){
+				return Reflect.deleteProperty(state, key)
 			}
 		})
 		proxies[ path.key ] = out
@@ -141,10 +87,23 @@ function PathProxy({ state, path=new Path() }){
 	let values = {}
  
 	let state = PathProxy({ state: __state__ })
+
+	function on(event, proxies, visitor){
+		// subscriptions[key] = subscriptions[key] || []
+		// subscriptions[key].push({ type: 'change', visitor: f })
+	}
+
+	function off(event, proxies, visitor){
+		// if ( key in subscriptions ) {
+		// 	let i = subscriptions[key].findIndex( x => x.visitor == f && x.type == type )  
+		// 	if ( i > -1 ) {
+		// 		subscriptions.splice(i, 1)
+		// 	}
+		// }
+	}
 	
-	return { state, Path, Component, subscriptions }
+	let z = { state, Path, Component, subscriptions, on, off }
+	let hyperscript = Hyperscript({ z })
+	z.hyperscript = hyperscript
+	return z
 }
-
-let z = Z4({})
-
-
