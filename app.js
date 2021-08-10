@@ -1,6 +1,7 @@
+/* globals m,window,document */
 import Z from './z.js'
 
-let z = Z({})
+let z = new Z()
 let h = z.hyperscript
 
 window.z = z

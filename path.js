@@ -1,35 +1,40 @@
+const paths = {}
+
 export class Path {
-	__parts=[]
-	__key=this.__parts.join('.')
+	parts=[]
+	key=''
+	staticParts=[]
+	rank=Infinity
 	constructor(xs=[]){
-		if( typeof xs == 'string' ) xs = xs.split('.').map( x => new Property(x) )
-		
 		this.parts = xs
+		this.key = xs.join('.')
+		
 		this.last = xs[xs.length-1]
-	}
-	get parts() {
-		return this.__parts
-	}
-	set parts(xs){
-		this.__parts = xs
-		this.__key = xs.join('.')
-		return this.__parts
-	}
-	get key(){
-		return this.__key
+		this.staticParts = this.parts.filter( x => x.isStatic )
+		this.rank = Math.max(...this.parts.map( x => x.rank ))
 	}
 	concat(xs) {
-		if ( xs instanceof Path ) {
-			return new Path( this.parts.concat(xs.parts) ) 
-		}
-		return this.concat(new Path(xs))
+		return Path.of( this.parts.concat(xs.parts) ) 
 	}
+	static of(xs=[]){
+		let key = xs.join('.')
+		if( key in paths ) {
+			return paths[key]
+		} else {
+			return new Path(xs)
+		}
+	}
+}
+
+export function addParts(path, ...parts){
+	return path.concat(Path.of(parts))
 }
 
 export class PathOperations { 
 	rank = 0 
 	key = ''
 	dependencies = []
+	isStatic = true
 	set(){ throw new Error('Unsupported')}
 	get(){ throw new Error('Unsupported')}
 	remove(){ throw new Error('Unsupported')}
@@ -37,52 +42,51 @@ export class PathOperations {
 		return this.key
 	}
 }
+
 export class Property extends PathOperations {
 	rank = 1
-	
-	constructor(getState, key){
+	isStatic = true
+	constructor(meta, key){
 		super()
 		this.key = key
-		this.getState = getState
+		this.meta = meta
 	}
 
 	get state(){
-		return this.getState()[this.key]
+		return this.meta.state[this.key]
 	}
 
 	set({ value }){
-		this.getState()[this.key] = value
+		this.meta.state[this.key] = value
 	}
 	get(){
-		return [this.getState()[this.key]]
+		return [this.meta.state[this.key]]
 	}
 	remove(){
-		return delete this.getState()[this.key]
+		return delete this.meta.state[this.key]
 	}
 }
 
 export class Transform extends PathOperations {
 	rank = 2
+	isStatic = false
 	
-	constructor(getState, visitor, dependencies=[], theirKey=visitor.toString() ){
+	constructor(meta, visitor, dependencies=[], theirKey=visitor.toString() ){
 		super()
 		this.visitor = visitor
-		this.getState = getState
+		this.meta = meta
 		this.key = `$map(${theirKey}, [${dependencies.map( x => x.$.path.key ).join(',')}])`
 		this.dependencies = dependencies
 	}
 
-	get state(){
-		return this.getState()
-	}
 	// cannot set a map, would need to be an iso, maybe later?
 	set(){
-		return this.getState()
+		return this.meta.state
 	}
 	
 	get(){
 		let deps = this.dependencies.map( x => x() )
-		return this.getState().map( state => this.visitor(state, deps) )
+		return this.meta.state.map( state => this.visitor(state, deps) )
 	}
 
 	// cannot delete a map, makes no sense
@@ -93,40 +97,35 @@ export class Transform extends PathOperations {
 
 export class Filter extends PathOperations {
 	rank = 3
-	constructor(getState, visitor, dependencies=[], theirKey=visitor.toString() ){
+	isStatic = false
+	constructor(meta, visitor, dependencies=[], theirKey=visitor.toString() ){
 		super()
 		this.visitor = visitor
 		this.key = `$filter(${theirKey}, [${dependencies.map( x => x.$.path.key ).join(',')}])`
-		this.getState = getState
+		this.meta = meta
 		this.dependencies = dependencies
-	}
-
-	get state(){
-		return this.getState()
 	}
 
 	set({ value }){
 		let deps = this.dependencies.map( x => x() )
-		let state = this.getState()
+		let state = this.meta.state
 		for( let i = 0; i < state.length; i++ ) {
 			let x = state[i]
 			let match = this.visitor( x, deps)
 			if ( match ) {
-				state[i] = x
+				state[i] = value
 			}
 		} 
 	}
 	
 	get(){
 		let deps = this.dependencies.map( x => x() )
-		return this.getState().filter( x => this.visitor(x, deps) )
+		return this.meta.state.filter( x => this.visitor(x, deps) )
 	}
 
 	remove(){
 		let deps = this.dependencies.map( x => x() )
-		let keep = []
-		let removed = 0
-		let state = this.getState()
+		let state = this.meta.state
 		let len = state.length
 		for( let i = 0; i < len; i++ ) {
 			if ( i >= state.length ) break;
@@ -143,33 +142,28 @@ export class Filter extends PathOperations {
 
 export class Traverse extends PathOperations {
 	rank = 4
+	isStatic = false
 	key="$values"
-	constructor(getState){
+	constructor(meta){
 		super()
-		this.getState = getState
-	}
-
-	get state(){
-		return this.getState()
+		this.meta = meta
 	}
 
 	set({ value }){
-		let state = this.getState()
+		let state = this.meta.state
 		for( let i = 0; i < state.length; i++ ) {
-			if ( match ) {
-				state[i] = value
-			}
+			state[i] = value
 		} 
 	}
 	
 	get(){
-		return this.getState()
+		return this.meta.state
 	}
 
 	// deleting values sort of makes sense
 	// it means empty the list
 	remove(){
-		this.getState().length = 0
+		this.meta.state.length = 0
 		return true
 	}
 }

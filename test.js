@@ -4,7 +4,15 @@ import Z from './z.js'
 
 test('keys', t => {
     
-    let z = Z()
+    let z = new Z()
+
+    let x = z.state.a.b.c
+    let a = x.$
+    let b = x.$.path
+    let c = x.$.path.key
+    let d = x.toString()
+    let e = x.valueOf()
+
     t.equals(
         z.state.a.b.c.$.path.key
         , 'a.b.c', 'Basic key'
@@ -18,7 +26,7 @@ test('keys', t => {
 
 test('get', t => {
 
-    let z = Z()
+    let z = new Z()
     z.state.a.b.c.d = 4
     t.equals(z.state.$.state.a.b.c.d, 4, 'Nested set')
     
@@ -32,7 +40,7 @@ test('get', t => {
 })
 
 test('set', t => {
-    let z = Z()
+    let z = new Z()
     z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
     z.state.id = 3
 
@@ -49,7 +57,7 @@ test('set', t => {
 })
 
 test('delete', t => {
-    let z = Z()
+    let z = new Z()
     z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
 
     delete z.state.users.$values
@@ -72,7 +80,7 @@ test('delete', t => {
 })
 
 test('dependencies', t => {
-    let z = Z()
+    let z = new Z()
     let user = z.state.users
         .$values
         .$filter( (x,y) => x.id == y, [z.state.id] )
@@ -91,32 +99,32 @@ test('dependencies', t => {
     t.end()
 })
 
-// test('simple subscriptions', t => {
-//     let z = Z()
-//     let user = z.state.users
-//         .$values
-//         .$filter( (x,y) => x.id == y, [z.state.id] )
+test.skip('simple subscriptions', t => {
+    let z = new Z()
+    let user = z.state.users
+        .$values
+        .$filter( (x,y) => x.id == y, [z.state.id] )
 
-//     let called = 0
-//     z.on([user], function(){
-//         called++
-//     })
-//     t.equals(called, 0, 'Subscription not called when tree empty')
+    let called = 0
+    z.on([user], function(){
+        called++
+    })
+    t.equals(called, 0, 'Subscription not called when tree empty')
     
-//     z.state.users = [{ id: 1 }, { id: 2 }, { id: 3 }]
-//     z.state.id = 2
+    z.state.users = [{ id: 1 }, { id: 2 }, { id: 3 }]
+    z.state.id = 2
 
-//     t.equals(called, 1, 'Subscription called once dep is not empty')
+    t.equals(called, 1, 'Subscription called once dep is not empty')
 
-//     z.state.id = 2
-//     t.equals(called, 1, 'Setting a value to itself does not dispatch a notification')
+    z.state.id = 2
+    t.equals(called, 1, 'Setting a value to itself does not dispatch a notification')
 
-//     state.users = state.users()
-//     t.equals(called, 1, 'Setting a value to itself does not dispatch a notification pt2')
-// })
+    z.state.users = z.state.users()
+    t.equals(called, 1, 'Setting a value to itself does not dispatch a notification pt2')
+})
 // // test('simple subscription', t => {
     
-// //     let z = Z()
+// //     let z = new Z()
 // //     z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
 // //     z.id = 2
 

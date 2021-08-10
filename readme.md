@@ -6,7 +6,7 @@ What is it?
 
 Z4 is the next generation of functional UI reactive state.  It takes lessons from streams, lenses and atoms but is ultimately something new.
 
-The biggest difference between Z4 and other approaches is that Z4 behaves a lot more like a client side reactive database.
+The biggest difference between Z4 and other approaches is that Z4 behaves a lot more like a client side reactive database that was designed specifically for managing UI state.
 
 In Z4 you query for state that may or may not exist, and these queries can be subscribed and written back to.  When you write to a query the state doesn't live inside the query, it lives in the state tree itself or within various centralized managed caches.
 
@@ -16,13 +16,9 @@ The debugging experience is improved by the fact all queries have a named positi
 
 E.g. if you are accessing `user.user_name` the query is called `"user.user_name"`.  
 
-Additionally Z4 performs updates in phases.  As a point of comparison, when writing to streams, each stream has a list of dependencies.  These dependencies are iterated over and updated, these updates are recurisve as each child can also have a list of dependencies.  This list of dependencies is ordered by when they were defined.  Trying to step through a stream propagation is extremely frustrating as you have no awareness which stream you are in at any given time, and how it relates to your user code.
+Additionally Z4 manages the internal state, so it takes this opportunity to safely use mutation.  This leads to performance in improvements as all static query values are always in sync with the tree as they have a lazy reference to a mutable state tree.
 
-In Z4 each query has a managed, sorted list of other queries that need to be recomputed on write.  The entire tree is propagated from top to bottom.  Within each level of the tree, static queries are computed first, followed by dynamic queries.
-
-The tree propagation operates like a wave from root to leaf, and pays no attention to when a stream was defined.  It is predictable, logical and non-recursive.  A simple iteration through a managed list of named keys.
-
-The next phase is notifying subscriptions that changes have occurred.  Subscriptions are a place to listen to changes in queries and perform side effects.  This is where your application code can perform network requests or effects.  Subscriptions are always called after the tree has fully propagated.  Any writes to the tree are deferred by default until the subscription exits, except if the subscription `yield`'s control back to `Z4` via a generator function.
+Subscriptions are a place to listen to changes in queries and perform side effects.  This is where your application code can perform network requests or effects.  Subscriptions are always called after the tree has fully propagated.  Any writes to the tree are deferred by default until the subscription exits, except if the subscription `yield`'s control back to `Z4` via a generator function.
 
 Z4 is in a word controlled.  Other solutions are elegant in their implementation but not in their runtime debugging experience.  Z4 is the largely the opposite.  The source code is filled with if statements, multiple caches, many duplicated entry points (to avoid call stacks) and so on.  But this is all to improve performance and runtime clarity.
 

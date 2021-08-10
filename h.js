@@ -1,4 +1,7 @@
-export default function Hyperscript({ z }){
+/* globals m */
+import Component from './component.js'
+
+export default function Hyperscript(z){
     return function h(tag, attrs={}, children=[], ...rest){
         if (Array.isArray(children) ) {
           children = [...children, ...rest]  
@@ -15,7 +18,8 @@ export default function Hyperscript({ z }){
           let child = children[i]
           if ( !child) continue;
           if (child['$type'] == 'z4/proxy') {
-            children[i] = h( z.Component, { key: child.$.path.key, proxy: child, z })
+            children[i] = 
+              h( Component, { key: child.$.path.key, proxy: child, z })
           }
         }
        
