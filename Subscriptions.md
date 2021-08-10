@@ -90,7 +90,7 @@ These ordered notification paths are calculated whenever a new notification is d
 
 Before a notification fires a reference equality check will occur except if `{repeats: false}` is set in the notification options.  So by default a notification will not fire if the value has not changed.
 
-But, we still loop through the specific notification list to ask the query if it should notify because a parent reference equality may be the same, but a child reference equality may have.  This is because we mutate the state tree.  If the child reference changes, the parent reference usually won't.
+But, we still loop through the specific notification list to ask the query if it should notify because a parent reference equality may be the same, but a child reference equality may have changed.  This is because we mutate the state tree.  If the child reference changes, the parent reference usually won't.
 
 We perform this equality check in reverse notification order.  If all children deem reference equality is the same, there is no point asking the parents.
 

@@ -64,3 +64,19 @@ So each proxy would have a list of parents?  Or a list of children?  It would li
 ---
 
 I think Z3 can be instructive here.  A child should inherit the list of triggers from its parent, and then add its own.  When an element is pruned, there is a little work to update those lists.  But it may suffice to just prune the list whenever it is accessed to make teardown a little quicker as that is often when we're animating.
+
+---
+
+So where in the code is the list of triggers kept?  Is it in the root of Z4 via lifecycle hooks, is it on each Path object?  Is it on the Proxy?  The Meta?
+
+Centrally we have full access to all proxies.  So we can convert paths into proxies and ask subsequent questions.  The Path object has access to its own dependencies and path segments preceding it, but it doesn't have full awareness or access to the proxies themselves.
+
+Meta also is just there to hold state/paths it should probably be kept simple because it floats all over the place.
+
+The Proxy's responsibility is to turn JS property interactions into queries.
+
+So I think centrally.
+
+---
+
+Managing it centrally is interesting though because we do have the proxies but we have to create context from lifecycles.

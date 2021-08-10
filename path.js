@@ -4,14 +4,17 @@ export class Path {
 	parts=[]
 	key=''
 	staticParts=[]
+	dependencies=new Set()
 	rank=Infinity
 	constructor(xs=[]){
 		this.parts = xs
 		this.key = xs.join('.')
 		
 		this.last = xs[xs.length-1]
+		this.prev = xs[xs.length-2]
 		this.staticParts = this.parts.filter( x => x.isStatic )
 		this.rank = Math.max(...this.parts.map( x => x.rank ))
+		this.dependencies = this.last ? this.last.dependencies : []
 	}
 	concat(xs) {
 		return Path.of( this.parts.concat(xs.parts) ) 

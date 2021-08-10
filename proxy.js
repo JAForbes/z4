@@ -35,7 +35,8 @@ export class Meta {
 export class Handler {
 	// set later
 	proxy=null
-
+	dependencies=new Set()
+	static empty={}
 	constructor(meta=new Meta(), lifecycle=new Lifecycle()){
 		this.meta = meta
 		this.lifecycle = lifecycle
@@ -45,14 +46,21 @@ export class Handler {
 		return this.meta
 	}
 
+	get $dependencies(){
+		return this.dependencies
+	}
+
 	get $type(){
 		return 'z4/proxy'
 	}
 
 	get $values(){
-		return PathProxy.of(
+		let pp = PathProxy.of(
 			this.meta.descend(new Path.Traverse(this.meta))
+			, this.lifecycle
 		)
+		this.dependencies.add(pp)
+		return pp
 	}
 
 	$all = () => {
@@ -60,15 +68,21 @@ export class Handler {
 	}
 
 	$filter = (...args) => {
-		return PathProxy.of(
+		let pp = PathProxy.of(
 			this.meta.descend(new Path.Filter(this.meta, ...args))
+			, this.lifecycle
 		)
+		this.dependencies.add(pp)
+		return pp
 	}
 
 	$map = (...args) => {
-		return PathProxy.of(
+		let pp = PathProxy.of(
 			this.meta.descend(new Path.Transform(this.meta, ...args))
+			, this.lifecycle
 		)
+		this.dependencies.add(pp)
+		return pp
 	}
 
 	$delete = () => {
@@ -99,13 +113,15 @@ export class Handler {
 		} else {
 			let s = this.meta.state
 			if ( s[key] == null ) {
-				s[key] = {}
+				s[key] = Handler.empty
 			}
 
 			let nextMeta = this.meta.descend(new Path.Property(this.meta, key)) 
 			nextMeta.__state = () => this.meta.state[key]
 
 			let pp = PathProxy.of( nextMeta, this.lifecycle )
+
+			this.dependencies.add(pp)
 
 			return pp
 		}
@@ -115,7 +131,7 @@ export class Handler {
 		try {
 			return Reflect.set(this.meta.state, key, value)
 		} finally {
-			this.lifecycle.onset(this, value)
+			this.lifecycle.onset(this.proxy[key], value)
 		}
 	}
 
@@ -130,13 +146,13 @@ export class Handler {
 			try {
 				return this.meta.path.last.set({ meta: this.meta, value })
 			} finally {
-				this.lifecycle.onset(this, value)
+				this.lifecycle.onset(this.proxy, value)
 			}
 		} else {
 			try {
 				return this.meta.path.last.set({ meta: this.meta, value: args[0] })
 			} finally {
-				this.lifecycle.onset(this, args[0])
+				this.lifecycle.onset(this.proxy, args[0])
 			}
 		}
 		 

@@ -99,37 +99,49 @@ test('dependencies', t => {
     t.end()
 })
 
-test.skip('simple subscriptions', t => {
+// test.skip('simple subscriptions', t => {
+//     let z = new Z()
+//     let user = z.state.users
+//         .$values
+//         .$filter( (x,y) => x.id == y, [z.state.id] )
+
+//     let called = 0
+//     z.on([user], function(){
+//         called++
+//     })
+//     t.equals(called, 0, 'Subscription not called when tree empty')
+    
+//     z.state.users = [{ id: 1 }, { id: 2 }, { id: 3 }]
+//     z.state.id = 2
+
+//     t.equals(called, 1, 'Subscription called once dep is not empty')
+
+//     z.state.id = 2
+//     t.equals(called, 1, 'Setting a value to itself does not dispatch a notification')
+
+//     z.state.users = z.state.users()
+//     t.equals(called, 1, 'Setting a value to itself does not dispatch a notification pt2')
+// })
+
+test.only('simple subscription', t => {
+    
     let z = new Z()
-    let user = z.state.users
-        .$values
-        .$filter( (x,y) => x.id == y, [z.state.id] )
+    z.on([z.state.users], () => console.log('users set', z.state.users()))
+    console.log('before set')
+    z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
+    z.state.friend.id = 2
+    z.on([z.state.friend.id], () => console.log('friend set', z.state.friend.id()))
+    let id = z.state.friend.id
 
-    let called = 0
-    z.on([user], function(){
-        called++
-    })
-    t.equals(called, 0, 'Subscription not called when tree empty')
-    
-    z.state.users = [{ id: 1 }, { id: 2 }, { id: 3 }]
-    z.state.id = 2
+    let v = z.state.users.$values
+    let user = v.$filter((x,y) => x.id == y, [id])
 
-    t.equals(called, 1, 'Subscription called once dep is not empty')
+    z.on([user], () => console.log('user set', user()))
 
-    z.state.id = 2
-    t.equals(called, 1, 'Setting a value to itself does not dispatch a notification')
+    user;
 
-    z.state.users = z.state.users()
-    t.equals(called, 1, 'Setting a value to itself does not dispatch a notification pt2')
+    z.state.friend.id = 2
+    t.end()
 })
-// // test('simple subscription', t => {
-    
-// //     let z = new Z()
-// //     z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
-// //     z.id = 2
-
-// //     user = z.state
-// //     t.end()
-// // })
 // test('deferrable subscriptions')
 // test('caching')
