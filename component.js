@@ -1,3 +1,4 @@
+/* globals m */
 
 export default function Component({ attrs: { proxy, z }}){
 	

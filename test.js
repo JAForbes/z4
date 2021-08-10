@@ -4,7 +4,15 @@ import Z from './z.js'
 
 test('keys', t => {
     
-    let z = Z()
+    let z = new Z()
+
+    let x = z.state.a.b.c
+    let a = x.$
+    let b = x.$.path
+    let c = x.$.path.key
+    let d = x.toString()
+    let e = x.valueOf()
+
     t.equals(
         z.state.a.b.c.$.path.key
         , 'a.b.c', 'Basic key'
@@ -18,7 +26,7 @@ test('keys', t => {
 
 test('get', t => {
 
-    let z = Z()
+    let z = new Z()
     z.state.a.b.c.d = 4
     t.equals(z.state.$.state.a.b.c.d, 4, 'Nested set')
     
@@ -32,7 +40,7 @@ test('get', t => {
 })
 
 test('set', t => {
-    let z = Z()
+    let z = new Z()
     z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
     z.state.id = 3
 
@@ -49,7 +57,7 @@ test('set', t => {
 })
 
 test('delete', t => {
-    let z = Z()
+    let z = new Z()
     z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
 
     delete z.state.users.$values
@@ -72,7 +80,7 @@ test('delete', t => {
 })
 
 test('dependencies', t => {
-    let z = Z()
+    let z = new Z()
     let user = z.state.users
         .$values
         .$filter( (x,y) => x.id == y, [z.state.id] )
@@ -91,8 +99,8 @@ test('dependencies', t => {
     t.end()
 })
 
-// test('simple subscriptions', t => {
-//     let z = Z()
+// test.skip('simple subscriptions', t => {
+//     let z = new Z()
 //     let user = z.state.users
 //         .$values
 //         .$filter( (x,y) => x.id == y, [z.state.id] )
@@ -111,17 +119,29 @@ test('dependencies', t => {
 //     z.state.id = 2
 //     t.equals(called, 1, 'Setting a value to itself does not dispatch a notification')
 
-//     state.users = state.users()
+//     z.state.users = z.state.users()
 //     t.equals(called, 1, 'Setting a value to itself does not dispatch a notification pt2')
 // })
-// // test('simple subscription', t => {
-    
-// //     let z = Z()
-// //     z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
-// //     z.id = 2
 
-// //     user = z.state
-// //     t.end()
-// // })
+test.only('simple subscription', t => {
+    
+    let z = new Z()
+    z.on([z.state.users], () => console.log('users set', z.state.users()))
+    console.log('before set')
+    z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
+    z.state.friend.id = 2
+    z.on([z.state.friend.id], () => console.log('friend set', z.state.friend.id()))
+    let id = z.state.friend.id
+
+    let v = z.state.users.$values
+    let user = v.$filter((x,y) => x.id == y, [id])
+
+    z.on([user], () => console.log('user set', user()))
+
+    user;
+
+    z.state.friend.id = 2
+    t.end()
+})
 // test('deferrable subscriptions')
 // test('caching')
