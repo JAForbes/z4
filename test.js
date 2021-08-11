@@ -18,7 +18,7 @@ test('keys', t => {
     t.end()
 })
 
-test('get', t => {
+test.only('get', t => {
 
     let z = new Z()
 
@@ -35,6 +35,9 @@ test('get', t => {
     t.equals(z.state.users.$values.$filter( x => x.id == 2 )().id, 2, '()')
 
     t.equals(z.state.users.$values.$filter( x => x.id == 2 ).valueOf().id, 2, 'valueOf')
+
+    // failing
+    t.equals(z.state.users.$values.$filter( x => x.id == 2 ).id(), 2, 'Sub paths of dynamics')
     t.end()
 })
 
@@ -136,7 +139,7 @@ test('simple subscriptions', t => {
     t.end()
 })
 
-test('caching dynamics', t => {
+test.skip('caching dynamics', t => {
     let z = new Z()
     let called = { user: 0 }
         
