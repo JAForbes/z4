@@ -33,7 +33,7 @@ export default class Z4 extends Proxy.Lifecycle {
 			
 			outer: for(let sub of this.subscriptions[dep]){
 				for(let dep of sub.dependencies){
-					if( dep.$.state == undefined ) break outer;
+					if( dep() == undefined ) break outer;
 				}
 				subs.add(sub)
 			}
@@ -133,9 +133,9 @@ export default class Z4 extends Proxy.Lifecycle {
 		}
 
 		let ready = dependencies.every( x => {
-			let y = x.$.state
+			let y = x.valueOf()
 			
-			return y != null && y != Proxy.Handler.empty
+			return !(y == null || y instanceof Proxy.Initial)
 		} )
 
 		if( ready ) {

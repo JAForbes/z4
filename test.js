@@ -6,20 +6,14 @@ test('keys', t => {
     
     let z = new Z()
 
-    let x = z.state.a.b.c
-    let a = x.$
-    let b = x.$.path
-    let c = x.$.path.key
-    let d = x.toString()
-    let e = x.valueOf()
-
     t.equals(
         z.state.a.b.c.$.path.key
         , 'a.b.c', 'Basic key'
     )
     t.equals(
-        z.state.a.b.c.$values.$filter( (x,y) => x.id == y
-        , [z.state.id]).$.path.key, 'a.b.c.$values.$filter((x,y) => x.id == y, [id])', 'Complex key'
+        z.state.a.b.c.$values.$filter( (x,y) => x.id == y, [z.state.id])
+            .$.path.key
+        , 'a.b.c.$values.$filter((x,y) => x.id == y, [id])', 'Complex key'
     )
     t.end()
 })
@@ -27,6 +21,9 @@ test('keys', t => {
 test('get', t => {
 
     let z = new Z()
+
+    t.doesNotThrow( () => z.state(), 'Can access root state object')
+
     z.state.a.b.c.d = 4
     t.equals(z.state.$.state.a.b.c.d, 4, 'Nested set')
     
@@ -35,7 +32,9 @@ test('get', t => {
     t.equals(z.state.users.$values.$all().map( x => x.id ).join('|'), '1|2|3', '$values get')
     t.equals(z.state.users.$values.$map( x => x.id + 1 ).$all().join('|'), '2|3|4', '$map get')
 
-    t.equals(z.state.users.$values.$filter( x => x.id == 2 )().id, 2, '')
+    t.equals(z.state.users.$values.$filter( x => x.id == 2 )().id, 2, '()')
+
+    t.equals(z.state.users.$values.$filter( x => x.id == 2 ).valueOf().id, 2, 'valueOf')
     t.end()
 })
 
@@ -99,49 +98,43 @@ test('dependencies', t => {
     t.end()
 })
 
-// test.skip('simple subscriptions', t => {
-//     let z = new Z()
-//     let user = z.state.users
-//         .$values
-//         .$filter( (x,y) => x.id == y, [z.state.id] )
-
-//     let called = 0
-//     z.on([user], function(){
-//         called++
-//     })
-//     t.equals(called, 0, 'Subscription not called when tree empty')
-    
-//     z.state.users = [{ id: 1 }, { id: 2 }, { id: 3 }]
-//     z.state.id = 2
-
-//     t.equals(called, 1, 'Subscription called once dep is not empty')
-
-//     z.state.id = 2
-//     t.equals(called, 1, 'Setting a value to itself does not dispatch a notification')
-
-//     z.state.users = z.state.users()
-//     t.equals(called, 1, 'Setting a value to itself does not dispatch a notification pt2')
-// })
-
-test.only('simple subscription', t => {
-    
+test('simple subscriptions', t => {
     let z = new Z()
-    z.on([z.state.users], () => console.log('users set', z.state.users()))
-    console.log('before set')
-    z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
+    
+    let called = { user: 0, users: 0, friend: 0 }
+    
+    z.on([z.state.users], () => called.users++)
+    
+    let user = z.state.users
+        .$values
+        .$filter( (x,y) => x.id == y, [z.state.friend.id] )
+
+    
+    z.on([user], function(){
+        called.user++
+    })
+    t.equals(called.user, 0, 'Subscription not called.user when tree empty')
+    
+    z.state.users = [{ id: 1 }, { id: 2 }, { id: 3 }]
+
+    t.equals(called.user, 0, 'Subscription not called.user when tree empty pt 2')
     z.state.friend.id = 2
-    z.on([z.state.friend.id], () => console.log('friend set', z.state.friend.id()))
-    let id = z.state.friend.id
+    z.on([z.state.friend.id], () => called.friend++)
 
-    let v = z.state.users.$values
-    let user = v.$filter((x,y) => x.id == y, [id])
-
-    z.on([user], () => console.log('user set', user()))
-
-    user;
+    t.equals(called.user, 1, 'Subscription called.user once all deps are ready')
 
     z.state.friend.id = 2
+    t.equals(called.user, 1, 'Setting a value to itself does not dispatch a notification')
+
+    let copy = z.state.users()
+    z.state.users = copy
+    t.equals(called.user, 1, 'Setting a value to itself does not dispatch a notification pt2')
+    
+    z.state.friend.id = 3
+    t.equals(called.user, 2, 'Updating a dependency updates the notification')
+
     t.end()
 })
+
 // test('deferrable subscriptions')
 // test('caching')

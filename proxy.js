@@ -14,7 +14,7 @@ export class Meta {
 	__state=() => {}
 	path=Path.Path.of()
 	lifecycle=new Lifecycle()
-
+	last=new Path.Root(this)
 	get state(){
 		return this.__state()
 	}
@@ -23,8 +23,19 @@ export class Meta {
 		let p = new Meta()
 		p.__state = () => this.state
 		p.path = Path.addParts(this.path, pathOp)
+		p.last = pathOp
 		return p
 	}
+}
+
+// An object that was created
+// as a placeholder during traversal
+// can hold values
+// but when is set by a user
+// we record it so notifications
+// can skip on user initialized data
+export class Initial {
+	length = 0
 }
 
 /**
@@ -36,7 +47,6 @@ export class Handler {
 	// set later
 	proxy=null
 	dependencies=new Set()
-	static empty={}
 	constructor(meta=new Meta(), lifecycle=new Lifecycle()){
 		this.meta = meta
 		this.lifecycle = lifecycle
@@ -64,7 +74,7 @@ export class Handler {
 	}
 
 	$all = () => {
-		return this.meta.path.last.get(this.meta)
+		return this.meta.last.get(this.meta)
 	}
 
 	$filter = (...args) => {
@@ -87,14 +97,14 @@ export class Handler {
 
 	$delete = () => {
 		try {
-			return this.meta.path.last.remove(this.meta)
+			return this.meta.last.remove(this.meta)
 		} finally {
 			this.lifecycle.onremove(this)
 		}
 	}
 
 	valueOf = () => {
-		return this.meta.state
+		return this.meta.last.get(this.meta)[0]
 	}
 
 	toString = () => {
@@ -113,7 +123,7 @@ export class Handler {
 		} else {
 			let s = this.meta.state
 			if ( s[key] == null ) {
-				s[key] = Handler.empty
+				s[key] = new Initial()
 			}
 
 			let nextMeta = this.meta.descend(new Path.Property(this.meta, key)) 
@@ -128,10 +138,15 @@ export class Handler {
 	}
 
 	set(_, key, value){
+		let proxy = this.proxy[key]
+		let prev = proxy.valueOf()
+		if (prev == value) return true
 		try {
-			return Reflect.set(this.meta.state, key, value)
+			if( value instanceof Initial) value = {}
+			proxy.$.path.last.set({ meta: this.meta, value })
+			return true
 		} finally {
-			this.lifecycle.onset(this.proxy[key], value)
+			this.lifecycle.onset(proxy, value)
 		}
 	}
 
@@ -140,17 +155,24 @@ export class Handler {
 		if( typeof this.meta.state == 'function' ) {
 			return Reflect.apply(this.meta.state, ...args)
 		} else if (args.length == 0) {
-			return this.meta.path.last.get(this.meta)[0]
+			return this.valueOf()
 		} else if (typeof args[0] == 'function'){
-			let value = args[0](this.meta.state)
+			let prev = this.valueOf()
+			let value = args[0](prev)
+			if (prev == value) return true
 			try {
-				return this.meta.path.last.set({ meta: this.meta, value })
+				if( value instanceof Initial) value = {}
+				return this.meta.last.set({ meta: this.meta, value })
 			} finally {
 				this.lifecycle.onset(this.proxy, value)
 			}
 		} else {
 			try {
-				return this.meta.path.last.set({ meta: this.meta, value: args[0] })
+				let prev = this.valueOf()
+				let value = args[0]
+				if (prev == value) return true
+				if( value instanceof Initial) value = {}
+				return this.meta.last.set({ meta: this.meta, value: args[0] })
 			} finally {
 				this.lifecycle.onset(this.proxy, args[0])
 			}

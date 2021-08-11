@@ -46,6 +46,29 @@ export class PathOperations {
 	}
 }
 
+/**
+ * This handles access when the path list is empty.
+ */
+export class Root extends PathOperations {
+	rank = 1
+	isStatic = true
+	key = ''
+	constructor(meta){
+		super()
+		this.meta = meta
+	}
+
+	get state(){
+		return this.meta.state
+	}
+
+	set(){ return true }
+	get(){
+		return [this.meta.state]
+	}
+	remove(){ return true }
+}
+
 export class Property extends PathOperations {
 	rank = 1
 	isStatic = true
@@ -98,6 +121,10 @@ export class Transform extends PathOperations {
 	}
 }
 
+/**
+ * Supports lists or objects.
+ * We could support more things later, but should we?
+ */
 export class Filter extends PathOperations {
 	rank = 3
 	isStatic = false
@@ -112,31 +139,42 @@ export class Filter extends PathOperations {
 	set({ value }){
 		let deps = this.dependencies.map( x => x() )
 		let state = this.meta.state
-		for( let i = 0; i < state.length; i++ ) {
-			let x = state[i]
-			let match = this.visitor( x, deps)
+		for(let[k,v] of Object.entries(this.meta.state)){
+			let match = this.visitor(v, deps)
 			if ( match ) {
-				state[i] = value
+				state[k] = value
 			}
-		} 
+		}
+
 	}
 	
 	get(){
 		let deps = this.dependencies.map( x => x() )
-		return this.meta.state.filter( x => this.visitor(x, deps) )
+		return Object.values(this.meta.state).filter( x => this.visitor(x, deps) )
 	}
 
 	remove(){
 		let deps = this.dependencies.map( x => x() )
 		let state = this.meta.state
-		let len = state.length
-		for( let i = 0; i < len; i++ ) {
-			if ( i >= state.length ) break;
-			let x = state[i]
-			let match = this.visitor(x, deps)
-			if ( match ) {
-				state.splice(1, i)
-				i--
+		
+		// <todo-james maybe this can be unified with the object code?	
+		if( Array.isArray(state) ){
+			let len = state.length
+			for( let i = 0; i < len; i++ ) {
+				if ( i >= state.length ) break;
+				let x = state[i]
+				let match = this.visitor(x, deps)
+				if ( match ) {
+					state.splice(1, i)
+					i--
+				}
+			}
+		} else {
+			for(let[k,v] of Object.entries(this.meta.state)){
+				let match = this.visitor(v, deps)
+				if(match){
+					delete this.meta.state[k]
+				}
 			}
 		}
 		return true
