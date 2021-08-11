@@ -9,6 +9,7 @@ export default class Z4 extends Proxy.Lifecycle {
 	dependents = {}
 	
 	cachedSubscriptions = {}
+	cachedDynamics = {}
 
 	constructor(state={}){
 		super()
@@ -44,11 +45,30 @@ export default class Z4 extends Proxy.Lifecycle {
 	}
 
 	onset(handler){
+		this.cachedDynamics = {}
+		
 		let key = handler.$.path.key
 
 		for( let sub of this.notify(key) ){
 			sub.visitor()
 		}
+	}
+
+	onbeforeget(proxy, getter){
+		let path = proxy.$.path
+		let key = path.key
+
+		if( path.static ) {
+			return getter()
+		} else if ( !(key in this.cachedDynamics) ) {
+			this.cachedDynamics[key] = getter()
+		}
+		return this.cachedDynamics[key]
+	}
+
+	onremove(){
+		this.cachedSubscriptions = {}
+		this.cachedDynamics = {}
 	}
 	
 	oncreate({ proxy=new Proxy.Handler(), meta=new Proxy.Meta() }){
@@ -56,6 +76,8 @@ export default class Z4 extends Proxy.Lifecycle {
 		// cache.  We can optimize this later if benchmarks show
 		// this is even an issue.
 		this.cachedSubscriptions = {}
+		this.cachedDynamics = {}
+
 		let key = meta.path.key
 		this.proxies[ key ] = proxy
 

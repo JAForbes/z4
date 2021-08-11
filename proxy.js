@@ -73,10 +73,6 @@ export class Handler {
 		return pp
 	}
 
-	$all = () => {
-		return this.meta.last.get(this.meta)
-	}
-
 	$filter = (...args) => {
 		let pp = PathProxy.of(
 			this.meta.descend(new Path.Filter(this.meta, ...args))
@@ -103,8 +99,20 @@ export class Handler {
 		}
 	}
 
+	
+	$all = () => {
+		return this.lifecycle.onbeforeget( 
+			this.proxy
+			, () => this.meta.last.get(this.meta)
+		)
+	}
+
 	valueOf = () => {
-		return this.meta.last.get(this.meta)[0]
+		return this.lifecycle.onbeforeget( 
+			this.proxy
+			, () => this.meta.last.get(this.meta)
+		)
+		[0]
 	}
 
 	toString = () => {
@@ -202,6 +210,7 @@ export class Lifecycle {
 	oncreate(){}
 	onremove(){}
 	onbeforecreate(){}
+	onbeforeget(_, f){ return f() }
 	onset(){}
 }
 

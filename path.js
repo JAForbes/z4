@@ -14,6 +14,8 @@ export class Path {
 		this.prev = xs[xs.length-2]
 		this.staticParts = this.parts.filter( x => x.isStatic )
 		this.rank = Math.max(...this.parts.map( x => x.rank ))
+		this.dynamic = this.staticParts.length != this.parts.length
+		this.static = !this.dynamic
 		this.dependencies = this.last ? this.last.dependencies : []
 	}
 	concat(xs) {

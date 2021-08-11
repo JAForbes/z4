@@ -136,5 +136,49 @@ test('simple subscriptions', t => {
     t.end()
 })
 
+test('caching dynamics', t => {
+    let z = new Z()
+    let called = { user: 0 }
+        
+    let user = z.state.users
+        .$values
+        .$filter( (x,y) => {
+            called.user++
+            return x.id == y
+        }, [z.state.friend.id] )
+
+    let list =  [{ id: 1 }, { id: 2 }, { id: 3 }]
+    z.state.users = list
+    z.state.friend.id = 2
+
+    t.equals(called.user, 0, 'Base state')
+
+    user()
+
+    t.equals(called.user, list.length * 1, 'Invoked on first read')
+
+    user()
+
+    t.equals(called.user, list.length * 1, 'Not invoked on first read')
+    user()
+    user()
+    user()
+    
+    t.equals(called.user, list.length * 1, 'Not invoked on subsequent reads')
+
+    z.state.users = [{ id: 1 }, { id: 2 }, { id: 4 }]
+
+    user()
+
+    t.equals(called.user, list.length * 2, 'Invoked on first read after write')
+
+    user()
+    user()
+    user()
+
+    t.equals(called.user, list.length * 2, 'Not invoked on subsequent reads after write')
+
+    t.end()
+})
+
 // test('deferrable subscriptions')
-// test('caching')
