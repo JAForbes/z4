@@ -8,6 +8,8 @@ export default class Z4 extends Proxy.Lifecycle {
 	dependencies = {}
 	dependents = {}
 	
+	cachedSubscriptions = {}
+
 	constructor(state={}){
 		super()
 
@@ -23,6 +25,7 @@ export default class Z4 extends Proxy.Lifecycle {
 	}
 
 	notify(key){
+		if( key in this.cachedSubscriptions ) return this.cachedSubscriptions[key]
 		let subs = new Set()
 		let xs = [key, ...this.dependents[key]]
 		for(let dep of xs){
@@ -36,6 +39,7 @@ export default class Z4 extends Proxy.Lifecycle {
 			}
 		}
 
+		this.cachedSubscriptions[key] = subs
 		return subs
 	}
 
@@ -48,6 +52,10 @@ export default class Z4 extends Proxy.Lifecycle {
 	}
 	
 	oncreate({ proxy=new Proxy.Handler(), meta=new Proxy.Meta() }){
+		// Anytime a new proxy is created, we clear the subscription
+		// cache.  We can optimize this later if benchmarks show
+		// this is even an issue.
+		this.cachedSubscriptions = {}
 		let key = meta.path.key
 		this.proxies[ key ] = proxy
 
