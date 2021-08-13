@@ -69,13 +69,6 @@ test('delete', t => {
 
     z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
 
-    {
-        let a = z.state.users.$values.$filter( x => x.id > 1 )
-        let b = a.$delete()
-        let c = b
-    }
-    // not working
-    z.state.users.$values.$filter( x => x.id > 1 ).$delete()
     t.equals(z.state.$.state[0].users.map( x => x.id ).join('|'), '1', 'delete matching elements')
 
     z.state.x = 1
