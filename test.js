@@ -144,7 +144,7 @@ test('simple subscriptions', t => {
     t.end()
 })
 
-test.skip('caching dynamics', t => {
+test('caching dynamics', t => {
     let z = new Z()
     let called = { user: 0 }
         
