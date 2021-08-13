@@ -3,7 +3,7 @@ Z4
 
 > 🚨 This is the 4th rewrite of a library I am already using in production.  The previous iteration was immutable and highly optimized but was also very complicated.  This is an attempt to write Z with fresh eyes with everything I've learned in the past 3 iterations.  The goal is to beat the performance of Z3 but have a simple/obvious code base that doesn't require a ton of effort to understand what is going on.
 >
-> Needless to say, the API is super in flux, the documentation is incorrect and out of date, and you should not use this in > any project yet.
+> Needless to say, the API is super in flux, the documentation is incorrect and out of date, and you should not use this in any project yet.
 >
 > To see the current state of the project checkout https://github.com/JAForbes/z4/projects/1
 
@@ -110,22 +110,26 @@ z.state.sshKeys()
 //     { id:4, name: 'Raspberry Pi' }
 // ]
 
-// Ensuring the predicates aren't satisfied
-// prevents further writes, but reads will return the last
-// value that was cached
-// this is useful for UI as we may want to display data in a render
-// even though we are about to change states
-// that invalidates all the queries
 section('personal-access-token')
 
 name() 
-// 'Office'
+// undefined
 
 name('Work')
 // no-op
 
 name()
-// 'Office'
+// undefined
+
+// Our predicate is no longer satisfied
+// We get back no results, but we can
+// use .$optimistic to return the last
+// value before the result set was empty
+// or to return the latest value even
+// before it is committed
+
+state = z.state.$optimistic
+state.name() // 'Work'
 ```
 
 
@@ -134,17 +138,21 @@ Notes:
 Services
 --------
 
+> 🚨 This isn't implemented yet
+
 You can transform a value with a visitor function just like `stream.map` in other libraries.  In Z4 these transforms are logical and may not run when you expect them too.  So it is important not to rely on them for unrelated side effects like logging, or network requests.
 
 Often in Z4 computations are deferred until they are read, or until there is some idle time that can be used. So placing a log in a call to `.$map`, `.$filter` etc may not run when you expect it too.
 
 If you want to perform some action beyond querying or writing to the tree, you can do so in a a service.
 
-Services are different to queries, they receive values from the tree, they can be paused and resume, but they do not return a value that can be transformed, they are leaf nodes in the Z4 propagation tree and are always updated after the state tree has fully propagated.
+Services are different to queries, they receive values from the tree, they can be paused and resumed, but they are not queries, they do not return a value that can be transformed, they are leaf nodes in the Z4 propagation tree.
 
 Services are defined as synchronous or generator functions.  Generator functions allow you to pause the side effect while async services run, or while the state tree propagates.  This pausing solves a common problem in reactive state solutions: infinite loops when writing back to tree in response to a subscription.
 
-If you `yield` to `Z4` after performing a write, `Z4` will delay the write if it needs to, and resume the side effect when there is no other writes happening.
+Any writes you perform for the duration of a service do not actually get applied to the state tree until the generator exits.  This is very similar to database transactions.  
+
+> 💡 If you want the view to see writes before they are committed you can use `.$optimistic` on any query.
 
 You can pass an options object to a side effect to change the service behaviour:
 
@@ -153,42 +161,51 @@ You can pass an options object to a side effect to change the service behaviour:
 - `cancel` will cancel resuming the effect if one of the subscription inputs updates while the effect is running (`finally` blocks will still run)
 
 ```js
-z([state.a.b.c], function * effect(){
+z([z.state.a.b.c], function * effect(){
+
     // Run a network request
-    let response = yield fetch(
+    // the service pauses while
+    // until the request resolves
+    let response = yield z.fetch(
         '/api/data'
         , 
         { method: 'POST'
-        , body: JSON.stringify(state.a.b.c()) 
+        , body: JSON.stringify(this.a.b.c()) 
         }
     )
     .then( x => x.json() )
 
-    state.delayed = 'not here yet'
+    // We can write back to the tree
+    // but out side of this service
+    // state.data will still be the
+    // old value
+    this.data = response
 
-    state.delayed() // undefined
-
-    // Yielding pauses the effect until the next propagation
-    yield;
-
-    // Now the value is here
-    state.delayed() // 'not here yet'
-
-    // When we write to the tree we can yield
-    // so the effect is resumed after propagation
-    yield state.delayed = 'here immediately'
-    state.delayed() // 'here immediately'
+    // we can still write to the global state
+    // by using `z.state` instead of
+    // this
 
 }, { throttle: 500, cancel: false })
 ```
 
+If you do not like `this`, you can also use the query instance that is passed in as the only argument to the query context:
+
+```js
+z([z.state.a.b.c], function * (state){
+
+  // equivalent
+  state.data = 'hello'
+  this.data = 'hello'
+
+})
+```
 
 Few things to note from this sample.  
 
 - Setting a query value to what it already is, is a no-op.  So there is no need to check that the existing value does not already equal the value you are setting it to.
-- `z.fetch` is just `fetch` but will automatically cancel network requests when a service is cancelled and can be replaced with alternative implementations for testing or for supporting older environments.
+- `z.fetch` is just `fetch` but will automatically cancel network requests when a service is cancelled and can be replaced with alternative implementations for testing or for supporting older environments.  You can use native fetch if you want, or any other promise returning function, but you will need to handle cancellation yourself.
 
-- No arguments are passed to the side effect generator.
+- No arguments are passed to the side effect generator except a draft state query.
 
 This side effect will run when values change, or after side effects are resolved, but to access the current value of the query, you still access it from the state tree itself.
 
@@ -235,7 +252,9 @@ A service will not run if the explicit dependencies have undefined values.  This
 Promises
 --------
 
-Setting a query value to a promise will schedule a write to the tree if the promise resolves.  Much like writing to the tree within services, writing to a query with an async value is not guaranteed to be reflected immediately except if you yield back to the tree.  For this reason it is not recommended to write a Promise to the tree outside of a service. 
+> 🚨 Not implemented yet
+
+Setting a query value to a promise will schedule a write to the tree if the promise resolves.  But it is recommended to keep all side effects in services.
 
 Mutation
 --------
