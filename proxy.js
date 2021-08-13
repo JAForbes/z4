@@ -11,7 +11,7 @@ import * as Path from './path.js'
  * This is used by the proxy.
  */
 export class Meta {
-	__state=() => {}
+	__state=() => [{}]
 	path=Path.Path.of()
 	lifecycle=new Lifecycle()
 	last=new Path.Root(this)
@@ -19,11 +19,10 @@ export class Meta {
 		return this.__state()
 	}
 
-	descend(pathOp){
+	descend(PathOp, handler){
 		let p = new Meta()
-		p.__state = () => this.state
-		p.path = Path.addParts(this.path, pathOp)
-		p.last = pathOp
+		p.__state = () => handler.$all()
+		p.path = Path.addParts(this.path, p.last = PathOp(p))
 		return p
 	}
 }
@@ -66,7 +65,7 @@ export class Handler {
 
 	get $values(){
 		let pp = PathProxy.of(
-			this.meta.descend(new Path.Traverse(this.meta))
+			this.meta.descend( meta => new Path.Traverse(meta), this)
 			, this.lifecycle
 		)
 		this.dependencies.add(pp)
@@ -75,7 +74,9 @@ export class Handler {
 
 	$filter = (...args) => {
 		let pp = PathProxy.of(
-			this.meta.descend(new Path.Filter(this.meta, ...args))
+			this.meta.descend( 
+				meta => new Path.Filter(meta, ...args), this
+			)
 			, this.lifecycle
 		)
 		this.dependencies.add(pp)
@@ -84,7 +85,7 @@ export class Handler {
 
 	$map = (...args) => {
 		let pp = PathProxy.of(
-			this.meta.descend(new Path.Transform(this.meta, ...args))
+			this.meta.descend( meta => new Path.Transform(meta, ...args), this)
 			, this.lifecycle
 		)
 		this.dependencies.add(pp)
@@ -121,21 +122,26 @@ export class Handler {
 
 	get(_, key){
 		if(typeof key == 'symbol' ) { 
-			return this.meta.state[key]
-		} else if ( 
+			return this.meta.state[0][key]
+		} else if (
 			key.startsWith('$') 
 			|| key == 'valueOf' 
 			|| key == 'toString' 
 		) {
 			return this[key]
 		} else {
-			let s = this.meta.state
-			if ( s[key] == null ) {
-				s[key] = new Initial()
+			for (let s of this.$all() ) {
+				if ( s[key] == null ) {
+					s[key] = new Initial()
+				}
 			}
 
-			let nextMeta = this.meta.descend(new Path.Property(this.meta, key)) 
-			nextMeta.__state = () => this.meta.state[key]
+			let nextMeta = 
+				this.meta.descend( 
+					meta => new Path.Property(this.meta, meta, key), this
+				) 
+
+			// nextMeta.__state = () => this.$all().map( x => x[key] )
 
 			let pp = PathProxy.of( nextMeta, this.lifecycle )
 
@@ -145,10 +151,14 @@ export class Handler {
 		}
 	}
 
-	set(_, key, value){
-		let proxy = this.proxy[key]
-		let prev = proxy.valueOf()
-		if (prev == value) return true
+	setSelf(_, proxy, value){
+		let prevAll = proxy.$all()
+		
+		for( let old of prevAll ) {
+			if ( old != value ) break;
+			return true;
+		}
+
 		try {
 			if( value instanceof Initial) value = {}
 			proxy.$.path.last.set({ meta: this.meta, value })
@@ -156,6 +166,11 @@ export class Handler {
 		} finally {
 			this.lifecycle.onset(proxy, value)
 		}
+	}
+
+	set(_, key, value){
+		let proxy = this.proxy[key]
+		return this.setSelf(_, proxy, value)
 	}
 
 	apply(_, __, args){
@@ -167,25 +182,15 @@ export class Handler {
 		} else if (typeof args[0] == 'function'){
 			let prev = this.valueOf()
 			let value = args[0](prev)
-			if (prev == value) return true
-			try {
-				if( value instanceof Initial) value = {}
-				return this.meta.last.set({ meta: this.meta, value })
-			} finally {
-				this.lifecycle.onset(this.proxy, value)
-			}
+
+			return this.setSelf(_, this.proxy, value)
 		} else {
 			try {
-				let prev = this.valueOf()
-				let value = args[0]
-				if (prev == value) return true
-				if( value instanceof Initial) value = {}
-				return this.meta.last.set({ meta: this.meta, value: args[0] })
+				return this.setSelf(_, this.proxy, ...args)
 			} finally {
 				this.lifecycle.onset(this.proxy, args[0])
 			}
 		}
-		 
 	}
 
 	deleteProperty(_, key){

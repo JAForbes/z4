@@ -15,7 +15,7 @@ export default class Z4 extends Proxy.Lifecycle {
 		super()
 
 		this.meta = new Proxy.Meta()
-		this.meta.__state = () => state
+		this.meta.__state = () => [state]
 
 		this.root = Proxy.PathProxy.of(
 			this.meta
