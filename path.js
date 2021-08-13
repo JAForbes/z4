@@ -185,8 +185,9 @@ export class Transform extends Op {
  * This doesn't mean we're filtering a list in your state, it
  * can reduce the result set for any query.
  * 
- * In order to filter an actual list of object in your tree
- * you must use the `Traverse` Op
+ * In order to filter an actual list or object in your tree
+ * you must use the `Traverse` Op first to lift a value
+ * into the result set scope.
  * 
  */
 export class Filter extends Op {
