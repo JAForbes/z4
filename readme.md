@@ -1,6 +1,12 @@
 Z4
 ==
 
+> 🚨 This is the 4th rewrite of a library I am already using in production.  The previous iteration was immutable and highly optimized but was also very complicated.  This is an attempt to write Z with fresh eyes with everything I've learned in the past 3 iterations.  The goal is to beat the performance of Z3 but have a simple/obvious code base that doesn't require a ton of effort to understand what is going on.
+>
+> Needless to say, the API is super in flux, the documentation is incorrect and out of date, and you should not use this in > any project yet.
+>
+> To see the current state of the project checkout https://github.com/JAForbes/z4/projects/1
+
 What is it?
 -----------
 
