@@ -141,8 +141,6 @@ export class Handler {
 					meta => new Path.Property(this.meta, meta, key), this
 				) 
 
-			// nextMeta.__state = () => this.$all().map( x => x[key] )
-
 			let pp = PathProxy.of( nextMeta, this.lifecycle )
 
 			this.dependencies.add(pp)
@@ -197,10 +195,7 @@ export class Handler {
 		// create child or access child
 		// so things like delete users.$values works
 		let child = this.proxy[key]
-		let worked = child.$.path.last.remove(this.meta)
-		if( worked ) return worked
-	
-		return child[key].$delete()
+		return child.$.path.last.remove(this.meta)
 	}
 
 }
