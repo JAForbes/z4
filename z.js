@@ -10,6 +10,7 @@ export default class Z4 extends Proxy.Lifecycle {
 	
 	cachedSubscriptions = {}
 	cachedDynamics = {}
+	initialized = { '': true }
 
 	constructor(state={}){
 		super()
@@ -44,6 +45,57 @@ export default class Z4 extends Proxy.Lifecycle {
 		return subs
 	}
 
+	initialize(proxy){
+		let key = ''
+		let parentKey =''
+		let path = proxy.$.path
+
+		if ( this.initialized[path.key] ) {
+			return true;
+		}
+
+		// unfortunately has to include dynamic parts
+		// as user.$values.$filter().name does not mean
+		// the same thing as user.name
+		for( let x of path.parts ) {
+			key += key ? '.' + x.key : x.key 
+
+			setup: {
+				let proxy = this.proxies[key]
+				let path = proxy.$.path
+	
+				if( this.initialized[key] ) break setup;
+				
+				let ourKey = path.last.key
+				// we cannot know how to set all queries
+				// only the path op's know
+				// so we use them
+				
+				if( path.last.isStatic ) {
+					// we check if it is static
+					// because setting x[".$values"] is not
+					// what we want
+					this.proxies[parentKey]( x => {
+						if( typeof x[ourKey] == 'undefined' ) {
+							x[ourKey] ={}
+						} 
+						return x
+					})
+				}
+
+				this.initialized[key] = true
+				
+			}
+
+			parentKey = key
+		}
+		return true
+	}
+
+	onbeforeset(proxy){
+		return this.initialize(proxy)	
+	}
+
 	onset(handler){
 		this.cachedDynamics = {}
 		
@@ -58,10 +110,14 @@ export default class Z4 extends Proxy.Lifecycle {
 		let path = proxy.$.path
 		let key = path.key
 
+		let parentProxy = this.proxies[path.parts.slice(0,-1).join('.')]
+		this.initialize(parentProxy)	
+
 		if( path.static ) {
 			return getter()
 		} else if ( !(key in this.cachedDynamics) ) {
-			this.cachedDynamics[key] = getter()
+			let got = getter()
+			this.cachedDynamics[key] = got
 		}
 		return this.cachedDynamics[key]
 	}
@@ -157,7 +213,7 @@ export default class Z4 extends Proxy.Lifecycle {
 		let ready = dependencies.every( x => {
 			let y = x.valueOf()
 			
-			return !(y == null || y instanceof Proxy.Initial)
+			return !(typeof y == 'undefined')
 		} )
 
 		if( ready ) {

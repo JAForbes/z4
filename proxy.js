@@ -27,16 +27,6 @@ export class Meta {
 	}
 }
 
-// An object that was created
-// as a placeholder during traversal
-// can hold values
-// but when is set by a user
-// we record it so notifications
-// can skip on user initialized data
-export class Initial {
-	length = 0
-}
-
 /**
  * This is a proxy handler with additional
  * methods and state that are referenced
@@ -100,12 +90,17 @@ export class Handler {
 		}
 	}
 
-	
+	$$all = () => {
+		return this.meta.last.get(this.meta)
+	}
+
 	$all = () => {
-		return this.lifecycle.onbeforeget( 
-			this.proxy
-			, () => this.meta.last.get(this.meta)
+		let a = this.proxy
+		let visitor = () => this.meta.last.get(this.meta)
+		let out = this.lifecycle.onbeforeget( 
+			a, visitor
 		)
+		return out
 	}
 
 	valueOf = () => {
@@ -130,11 +125,6 @@ export class Handler {
 		) {
 			return this[key]
 		} else {
-			for (let s of this.$all() ) {
-				if ( s[key] == null ) {
-					s[key] = new Initial()
-				}
-			}
 
 			let nextMeta = 
 				this.meta.descend( 
@@ -149,26 +139,21 @@ export class Handler {
 		}
 	}
 
-	setSelf(_, proxy, value){
-		let prevAll = proxy.$all()
-		
-		for( let old of prevAll ) {
-			if ( old != value ) break;
-			return true;
-		}
-
+	setSelf(_, proxy, visitor){
 		try {
-			if( value instanceof Initial) value = {}
-			proxy.$.path.last.set({ meta: this.meta, value })
+			this.lifecycle.onbeforeset(proxy)
+			proxy.$.last.set({ 
+				meta: this.meta, visitor, previous: this.$$all() 
+			})
 			return true
 		} finally {
-			this.lifecycle.onset(proxy, value)
+			this.lifecycle.onset(proxy)
 		}
 	}
 
 	set(_, key, value){
 		let proxy = this.proxy[key]
-		return this.setSelf(_, proxy, value)
+		return this.setSelf(_, proxy, () => value)
 	}
 
 	apply(_, __, args){
@@ -178,13 +163,10 @@ export class Handler {
 		} else if (args.length == 0) {
 			return this.valueOf()
 		} else if (typeof args[0] == 'function'){
-			let prev = this.valueOf()
-			let value = args[0](prev)
-
-			return this.setSelf(_, this.proxy, value)
+			return this.setSelf(_, this.proxy, args[0])
 		} else {
 			try {
-				return this.setSelf(_, this.proxy, ...args)
+				return this.setSelf(_, this.proxy, () => args[0])
 			} finally {
 				this.lifecycle.onset(this.proxy, args[0])
 			}
@@ -211,6 +193,7 @@ export class Lifecycle {
 	onremove(){}
 	onbeforecreate(){}
 	onbeforeget(_, f){ return f() }
+	onbeforeset(){}
 	onset(){}
 }
 

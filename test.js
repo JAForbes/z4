@@ -21,14 +21,18 @@ test('keys', t => {
 test('get', t => {
 
     let z = new Z()
+    global.tree = z.state()
 
     t.doesNotThrow( () => z.state(), 'Can access root state object')
 
+    let d = z.state.a.b.c.d
+    d(4)
     z.state.a.b.c.d = 4
     t.equals(z.state.$.state[0].a.b.c.d, 4, 'Nested set')
     
     z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
     z.state.id = 2
+
     t.equals(z.state.users.$values.$all().map( x => x.id ).join('|'), '1|2|3', '$values get')
 
     t.equals(z.state.users.$values.$map( x => x.id + 1 ).$all().join('|'), '2|3|4', '$map get')
@@ -42,7 +46,7 @@ test('get', t => {
 
 test('set', t => {
     let z = new Z()
-    z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
+    z.state.users = [{ id: 1, name: 'Joe' }, {id: 2, name: 'Jack' }, {id: 3, name: 'James' }]
     z.state.id = 3
 
     t.equals(z.state.$.state[0].id, 3, 'value')
@@ -53,6 +57,33 @@ test('set', t => {
 
     z.state.id(x => x - 1)
     t.equals(z.state.$.state[0].id, 5 -1, 'fn')
+
+    let not1 = z.state.users.$values.$filter( x => x.id > 1 )
+    // should get/set name of each user, not [].name
+    let name = not1.name
+    name()
+    not1.friends = [1,4]
+
+    // writing directly to a filter
+    not1( x => ({ ...x, additional: true }))
+
+    let a = not1()
+    let b = z.state.users()
+    let c = z.state()
+
+    let user = 
+        z.state
+            .users
+            .$values
+            .$filter( (x,y) => y == x.id, [z.state.id])
+
+    let friends = 
+        z.state.users
+            .$values
+            .$filter( (x,ys) => ys.includes(x.id), [user.friends] )
+
+    let d = friends()
+    let e = d
 
     t.end()
 })
