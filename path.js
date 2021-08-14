@@ -243,7 +243,11 @@ export class Path {
 						// eslint-disable-next-line max-depth
 						for( let j = 0; j < states[i].length; j++ ) {
 							let x = states[i][j]
-							traverseParent.set(x, { parent: states[i], index: j })
+							// we want the first real parent
+							// eslint-disable-next-line max-depth
+							if( !traverseParent.has(states[i])) {
+								traverseParent.set(x, { parent: states[i], index: j })
+							}
 							newStates.push(x)
 						}
 					}
@@ -254,7 +258,16 @@ export class Path {
 					if (!ready) break outer;
 
 					let match = nextOp.visitor(nextOp, ...deps)
-					if( !match ) states[i] = undefined
+					if( !match ) {
+						states[i] = undefined
+					} else {
+						// we want the first real parent
+						// eslint-disable-next-line max-depth
+						if( !traverseParent.has(states[i])) {
+							traverseParent.set(states[i], { parent: states, index: i })
+						}
+					}
+
 					
 				} else {
 					throw 'lol?'
@@ -324,6 +337,10 @@ export class Path {
 				// otherwise this is the only usage of .$values
 				// in the path, and therefore we can just clear the list
 				// at the current address by setting its length to 0
+				// except this doesn't account for filtered lists
+				// if a list was filtered, we're just setting
+				// the filtered list length to 0, not actually removing
+				// the item from the original list
 				} else {
 					for( let state of states ) {
 						state.length = 0
