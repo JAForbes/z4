@@ -250,12 +250,12 @@ test('use cached read/write when preventing set', t => {
     let xs = []
     let original = Z.prototype.onbeforeset
     let cachedValues = new Map()
-    let cacheAccesed = 0
+    let cacheAccessed = 0
     class Z2 extends Z {
         cachedValues = new Proxy(cachedValues, {
             get(target, key){
                 if( key == 'get' ) {
-                    cacheAccesed++
+                    cacheAccessed++
                 } 
                 
                 if( typeof target[key] == 'function' ) {
@@ -273,25 +273,25 @@ test('use cached read/write when preventing set', t => {
 
     let z = new Z2()
 
-    cacheAccesed = 0
+    cacheAccessed = 0
     z.state.x = 2
     z.state.x = 2
-    t.equals(cacheAccesed, 1, 'Cache was accesed on write')
+    t.equals(cacheAccessed, 1, 'Cache was accessed on write')
 
     t.equals(xs.join('|'), 'true|false', 'Set prevented by reading cache on second write')
 
-    cacheAccesed = 0
+    cacheAccessed = 0
     cachedValues.clear()
     z.state.x = 3
     z.state.x()
 
-    t.equals(cacheAccesed, 1, 'Cache was accesed on read after write')
+    t.equals(cacheAccessed, 1, 'Cache was accessed on read after write')
 
     cachedValues.clear()
     z.state.x()
-    cacheAccesed = 0
+    cacheAccessed = 0
     z.state.x = 3
-    t.equals(cacheAccesed, 1, 'Cache was accesed on write after read')
+    t.equals(cacheAccessed, 1, 'Cache was accessed on write after read')
     t.end()
 })
 

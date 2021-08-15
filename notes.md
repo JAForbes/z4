@@ -1,3 +1,7 @@
+Pass handler around instead of proxy
+
+---
+
 .$default
 
 --- 

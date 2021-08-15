@@ -51,7 +51,7 @@ export default class Z4 extends Proxy.Lifecycle {
 	onset(handler, states){
 		this.cachedValues.clear()
 		
-		let key = handler.$path.key
+		let key = handler.path.key
 		this.cachedValues.set(key, states)
 
 		for( let sub of this.notify(key) ){
@@ -59,8 +59,8 @@ export default class Z4 extends Proxy.Lifecycle {
 		}
 	}
 
-	onbeforeset(proxy, visitor){
-		let key = proxy.$path.key
+	onbeforeset(handler, visitor){
+		let key = handler.path.key
 
 		if ( this.cachedValues.has(key) ) {
 			for(let state of this.cachedValues.get(key) ){
@@ -71,8 +71,8 @@ export default class Z4 extends Proxy.Lifecycle {
 		return true;
 	}
 
-	onbeforeget(proxy, getter){
-		let path = proxy.$path
+	onbeforeget(handler, getter){
+		let path = handler.path
 		let key = path.key
 
 		if ( !this.cachedValues.has(key) ) {

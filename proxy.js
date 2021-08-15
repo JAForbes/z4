@@ -16,6 +16,10 @@ export class Handler {
 		this.cache = cache
 	}
 
+	get $handler(){
+		return this
+	}
+
 	get $path(){
 		return this.path
 	}
@@ -76,17 +80,16 @@ export class Handler {
 	}
 
 	$all = () => {
-		let a = this.proxy
 		let visitor = () => this.$$all()
 		let out = this.lifecycle.onbeforeget( 
-			a, visitor
+			this, visitor
 		)
 		return out
 	}
 
 	valueOf = () => {
 		return this.lifecycle.onbeforeget( 
-			this.proxy
+			this
 			, () => this.path.get({ states: this.getRootStates() })
 		)
 		[0]
@@ -132,26 +135,26 @@ export class Handler {
 		}
 	}
 
-	setSelf(_, proxy, visitor){
+	setSelf(_, handler, visitor){
 		
-		let allowed = this.lifecycle.onbeforeset(proxy, visitor)
+		let allowed = this.lifecycle.onbeforeset(handler, visitor)
 		if( !allowed ) {
 			return { updated: false };
 		}
 		let response = 
-			proxy.$path.set({
+			handler.path.set({
 				visitor, states: this.getRootStates() 
 			})
 			
 		if (response.updated) {
-			this.lifecycle.onset(proxy, response.states)
+			this.lifecycle.onset(handler, response.states)
 		}
 		return response
 	}
 
 	set(_, key, value){
 		let proxy = this.proxy[key]
-		this.setSelf(_, proxy, () => value)
+		this.setSelf(_, proxy.$handler, () => value)
 		return true
 	}
 
@@ -164,13 +167,13 @@ export class Handler {
 		} else if (args.length == 0) {
 			return existing
 		} else if (typeof args[0] == 'function'){
-			let response = this.setSelf(_, this.proxy, args[0])
+			let response = this.setSelf(_, this, args[0])
 			if (response.updated) {
 				return response.states[0]
 			}
 			return undefined
 		} else {
-			let response = this.setSelf(_, this.proxy, () => args[0])
+			let response = this.setSelf(_, this, () => args[0])
 			if (response.updated) {
 				return response.states[0]
 			}
