@@ -119,6 +119,7 @@ export class Path {
 		if( stack.length ) return { updated: false };
 
 		let anyChange = false
+		let outputStates = []
 		// final write
 		if ( finalOp ) {
 
@@ -132,6 +133,7 @@ export class Path {
 					if( plz != states[i][finalOp.key] ) {
 						states[i][finalOp.key] = plz
 						anyChange = true
+						outputStates.push(plz)
 					}
 				}
 			} else if ( finalOp instanceof Transform ) {
@@ -143,6 +145,7 @@ export class Path {
 					if (plz != parents[i][j]) {
 						parents[i][j] = plz
 						anyChange = true
+						outputStates.push(plz)
 					}
 				}			
 			} else if ( finalOp instanceof Filter ) {
@@ -159,11 +162,12 @@ export class Path {
 					if(plz != parents[i][j] ) {
 						parents[i][j] = plz
 						anyChange = true
+						outputStates.push(plz)
 					}
 				}
 			}
 
-			return { updated: anyChange }
+			return { updated: anyChange, states: outputStates }
 		}
 
 		return { updated: false }
