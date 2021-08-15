@@ -1,3 +1,6 @@
+- Fix conditional writes with filter
+- Prevent write/traversal if result has same equality
+- Cache value on write as well as read
 - Cache proxies earlier in the query process than before
 - Cache all values not just dynamics
 - Use Maps for caches as they can be cleared easily without creating a new reference

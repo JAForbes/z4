@@ -1,24 +1,4 @@
-Cache all values, not just dynamics
-
-And cache on set not just on read, because we know the read value after set
-
----
-
 .$default
-
----
-
-If value is cached, check in onbeforeset as well to prevent running the entire set just to find it won't happen
-
----
-
-Need to make set exit if already set
-
-And make delete return false if there is nothing to delete, so notifications don't happen
-
----
-
-Do we need to handle indexOf returning -1?  I guess that is impossible.
 
 --- 
 
@@ -33,12 +13,6 @@ Only the second write needs to run the full set loop.
 And there should be a way for a write to promise a mutation will not change the result of the filter.
 
 But I guess the way to do that is a mutation.  But then notifications wouldn't fire.
-
----
-
-Filter set doesn't do anything if its the finalOp we are just running an immutable visitor fn and storing it in an ephemeral list.
-
-We need to do the parents + indexOf thing
 
 ---
 
