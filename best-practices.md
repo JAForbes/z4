@@ -92,6 +92,7 @@ You may be in a view looping through some data and you've left query space.  Ins
 // prefer
 z.state.tasks().map( task => {
     let $task = 
+        // cached across renders
         z.state.tasks.$values.$filter( x => x.id == y, [task.task_id])
 
     return m(Task, { task: $task })
@@ -100,6 +101,7 @@ z.state.tasks().map( task => {
 // or
 z.state.tasks().map( (task, i) => {
     let $task = 
+        // cached across renders
         z.state.tasks[i]
         
     return m(Task, { task: $task })
@@ -107,11 +109,13 @@ z.state.tasks().map( (task, i) => {
 
 // avoid
 z.state.tasks().map( (task, i) => {
+    // Task should have access to a query
+    // not just an object
     return m(Task, { task: task })
 })
 ```
 
-The exception to this rule would be if the `Task` component is read only, and the data is not lazy loaded.
+The exception to this rule would be if the `Task` component is read only, and the data is guaranteed to be non null for all referenced properties.
 
 This may seem cumbersome, but there are patterns to make this feel more natural.
 
@@ -129,48 +133,4 @@ let task =
 
 // edit 3 tasks at once
 task.due_date = new Date()
-```
-
-Another option is to create a new z instance focusing on a specific object.  This is a great option for views that do not interact with the rest of the state tree, for example a form.
-
-
-```js
-z.state.tasks().map( (task, i) => {
-    return m(Task, { task: new Z({ state: task }).state })
-})
-```
-
-Z will check if it already has an instance for that subtree by reference, so repeated invocations will not create repeated Z instances.
-
-There is a shortcut for this `.$partition()`:
-
-```js
-z.state.tasks().map( (task, i) => {
-    return m(Task, { task: z.state.tasks[i].$partition().state })
-})
-```
-
-A database partition is a separate table that manages a subset of the overall data.  It is used when a table has too much data that query time starts to suffer.  Usually a partition is created to handle data within a particular date range, region, or set of customers.  Data that is often queried together is in the same partition.
-
-The same pattern applies in Z.  We're still writing to the same mutable state tree.  We're not creating a new state tree - we are just creating a new set of caches and notification systems.  Two shards have no awareness of eachother even though they write to the same single state tree.
-
-#### Use partitions only when necessary
-
-When you partition state, we also partition our ability to react to state changes.  E.g. if we are listening to changes on 2 sets of data in 2 different partitions our service will never activate because it will never be notified of the data change from the other partition.
-
-```js
-let z1 = z.state.users.$partition()
-let z2 = z.state.roles.$partition()
-
-z1.service([z1.state.users, z2.state.roles], function * () {
-    // never notified of z2 updates
-})
-
-z2.service([z1.state.users, z2.state.roles], function * () {
-    // never notified of z1 updates
-})
-
-z.service([z1.state.users, z2.state.roles], function * () {
-    // never notified of z1 or z2 updates
-})
 ```

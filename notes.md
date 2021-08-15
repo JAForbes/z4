@@ -1,4 +1,12 @@
-Need to remove outer states loop and inline to the if to remove repeated predicate checks.
+Cache all values, not just dynamics
+
+And cache on set not just on read, because we know the read value after set
+
+---
+
+.$default
+
+---
 
 If value is cached, check in onbeforeset as well to prevent running the entire set just to find it won't happen
 
