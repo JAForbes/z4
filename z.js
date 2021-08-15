@@ -1,28 +1,36 @@
 import Hyperscript from './h.js'
 import Component from './component.js'
 import * as Proxy from './proxy.js'
+import { Path } from './path.js'
 
 export default class Z4 extends Proxy.Lifecycle {
-	subscriptions = {}
-	proxies = {}
-	dependencies = {}
-	dependents = {}
+	subscriptions = Object.create(null)
+	proxies = Object.create(null)
+	dependencies = Object.create(null)
+	dependents = Object.create(null)
 	
+	cachedSubscriptions = Object.create(null)
+	cachedValues = new Map()
+
+	proxyCache = Object.create(null)
+
 	constructor(state={}){
 		super()
 
-		this.meta = new Proxy.Meta()
-		this.meta.__state = () => state
+		this.path = Path.of()
 
 		this.root = Proxy.PathProxy.of(
-			this.meta
+			this.path
 			, this
+			, () => [state]
+			, this.proxyCache
 		)
 	
 		this.hyperscript = Hyperscript(this)
 	}
 
 	notify(key){
+		if( key in this.cachedSubscriptions ) return this.cachedSubscriptions[key]
 		let subs = new Set()
 		let xs = [key, ...this.dependents[key]]
 		for(let dep of xs){
@@ -30,25 +38,63 @@ export default class Z4 extends Proxy.Lifecycle {
 			
 			outer: for(let sub of this.subscriptions[dep]){
 				for(let dep of sub.dependencies){
-					if( dep.$.state == undefined ) break outer;
+					if( dep() == undefined ) break outer;
 				}
 				subs.add(sub)
 			}
 		}
 
+		this.cachedSubscriptions[key] = subs
 		return subs
 	}
 
-	onset(handler){
-		let key = handler.$.path.key
+	onset(handler, states){
+		this.cachedValues.clear()
+		
+		let key = handler.path.key
+		this.cachedValues.set(key, states)
 
 		for( let sub of this.notify(key) ){
 			sub.visitor()
 		}
 	}
+
+	onbeforeset(handler, visitor){
+		let key = handler.path.key
+
+		if ( this.cachedValues.has(key) ) {
+			for(let state of this.cachedValues.get(key) ){
+				if( state == visitor(state) ) return false;
+			}
+		}
+
+		return true;
+	}
+
+	onbeforeget(handler, getter){
+		let path = handler.path
+		let key = path.key
+
+		if ( !this.cachedValues.has(key) ) {
+			let got = getter()
+			this.cachedValues.set(key, got)
+		}
+		return this.cachedValues.get(key)
+	}
+
+	onremove(){
+		this.cachedSubscriptions = {}
+		this.cachedValues.clear()
+	}
 	
-	oncreate({ proxy=new Proxy.Handler(), meta=new Proxy.Meta() }){
-		let key = meta.path.key
+	oncreate({ proxy=new Proxy.Handler(), path=Path.of() }){
+		// Anytime a new proxy is created, we clear the subscription
+		// cache.  We can optimize this later if benchmarks show
+		// this is even an issue.
+		this.cachedSubscriptions = {}
+		this.cachedValues.clear()
+
+		let key = path.key
 		this.proxies[ key ] = proxy
 
 		// if these queries update, tell me about it.
@@ -58,8 +104,8 @@ export default class Z4 extends Proxy.Lifecycle {
 		// by grabbing the dependencies from my parent
 		// if I have dependencies, we'll check theirs as well
 		let search = [
-			...meta.path.prev ? [meta.path.parts.slice(0,-1).join('.')] : []
-			, ...meta.path.dependencies.map( x => x.$.path.key )
+			...path.prev ? [path.parts.slice(0,-1).join('.')] : []
+			, ...path.dependencies.map( x => x.$path.key )
 		]
 
 		// start with my parents
@@ -104,9 +150,9 @@ export default class Z4 extends Proxy.Lifecycle {
 		// when we are deleted
 	} 
 	
-	onbeforecreate({ meta }){
-		if( this.proxies[meta.path.key] ) {
-			return this.proxies[meta.path.key]
+	onbeforecreate({ path }){
+		if( this.proxies[path.key] ) {
+			return this.proxies[path.key]
 		}
 		return null
 	}
@@ -119,15 +165,15 @@ export default class Z4 extends Proxy.Lifecycle {
 		let s = { visitor, dependencies }
 		
 		for( let d of dependencies){
-			let key = d.$.path.key
+			let key = d.$path.key
 			this.subscriptions[key] = this.subscriptions[key] || []
 			this.subscriptions[key].push(s)
 		}
 
 		let ready = dependencies.every( x => {
-			let y = x.$.state
+			let y = x.valueOf()
 			
-			return y != null && y != Proxy.Handler.empty
+			return !(typeof y == 'undefined')
 		} )
 
 		if( ready ) {

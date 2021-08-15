@@ -1,33 +1,6 @@
 import * as Path from './path.js'
 
 /**
- * Meta provides the current focused path
- * and a lazy getter at the state the path
- * should be focusing on.
- * 
- * Meta.descend is used to add one path segment
- * to the current path.
- * 
- * This is used by the proxy.
- */
-export class Meta {
-	__state=() => {}
-	path=Path.Path.of()
-	lifecycle=new Lifecycle()
-
-	get state(){
-		return this.__state()
-	}
-
-	descend(pathOp){
-		let p = new Meta()
-		p.__state = () => this.state
-		p.path = Path.addParts(this.path, pathOp)
-		return p
-	}
-}
-
-/**
  * This is a proxy handler with additional
  * methods and state that are referenced
  * by the traps.
@@ -36,14 +9,19 @@ export class Handler {
 	// set later
 	proxy=null
 	dependencies=new Set()
-	static empty={}
-	constructor(meta=new Meta(), lifecycle=new Lifecycle()){
-		this.meta = meta
+	constructor(path=Path.of(), lifecycle=new Lifecycle(), getRootStates, cache){
+		this.path = path
 		this.lifecycle = lifecycle
+		this.getRootStates = getRootStates
+		this.cache = cache
 	}
 
-	get $(){
-		return this.meta
+	get $handler(){
+		return this
+	}
+
+	get $path(){
+		return this.path
 	}
 
 	get $dependencies(){
@@ -56,21 +34,21 @@ export class Handler {
 
 	get $values(){
 		let pp = PathProxy.of(
-			this.meta.descend(new Path.Traverse(this.meta))
+			Path.addParts( this.path, new Path.Traverse() )
 			, this.lifecycle
+			, this.getRootStates
+			, this.cache
 		)
 		this.dependencies.add(pp)
 		return pp
 	}
 
-	$all = () => {
-		return this.meta.path.last.get(this.meta)
-	}
-
 	$filter = (...args) => {
 		let pp = PathProxy.of(
-			this.meta.descend(new Path.Filter(this.meta, ...args))
+			Path.addParts( this.path, new Path.Filter(...args) )
 			, this.lifecycle
+			, this.getRootStates
+			, this.cache
 		)
 		this.dependencies.add(pp)
 		return pp
@@ -78,23 +56,55 @@ export class Handler {
 
 	$map = (...args) => {
 		let pp = PathProxy.of(
-			this.meta.descend(new Path.Transform(this.meta, ...args))
+			Path.addParts( this.path, new Path.Transform(...args) )
 			, this.lifecycle
+			, this.getRootStates
+			, this.cache
 		)
 		this.dependencies.add(pp)
 		return pp
 	}
 
 	$delete = () => {
-		try {
-			return this.meta.path.last.remove(this.meta)
-		} finally {
+		let worked = this.path.remove({ states: this.getRootStates() })
+		if(worked) {
 			this.lifecycle.onremove(this)
 		}
+
+		// return true or proxy flips out
+		return true
+	}
+
+	$$all = () => {
+		return this.path.get({ states: this.getRootStates() })
+	}
+
+	$all = () => {
+		let visitor = () => this.$$all()
+		let out = this.lifecycle.onbeforeget( 
+			this, visitor
+		)
+		return out
+	}
+
+	$default = (otherwise) => {
+		let x = this.valueOf()
+		if( typeof x == 'undefined' ) {
+			return otherwise
+		}
+		return x
+	}
+
+	*[Symbol.iterator] (){
+		yield * this.$all()
 	}
 
 	valueOf = () => {
-		return this.meta.state
+		return this.lifecycle.onbeforeget( 
+			this
+			, () => this.path.get({ states: this.getRootStates() })
+		)
+		[0]
 	}
 
 	toString = () => {
@@ -102,70 +112,94 @@ export class Handler {
 	}
 
 	get(_, key){
-		if(typeof key == 'symbol' ) { 
-			return this.meta.state[key]
-		} else if ( 
+
+		if( key in this.cache ) {
+			return this.cache[key]
+		} else if (key == Symbol.iterator) {
+			return this[key]
+		} else if(typeof key == 'symbol' ) { 
+			let value = this.valueOf()
+			if( typeof value == 'undefined'){
+				return undefined
+			} else {
+				return value[key]
+			}
+			// assumes not empty
+		} else if (
 			key.startsWith('$') 
 			|| key == 'valueOf' 
 			|| key == 'toString' 
 		) {
 			return this[key]
 		} else {
-			let s = this.meta.state
-			if ( s[key] == null ) {
-				s[key] = Handler.empty
-			}
 
-			let nextMeta = this.meta.descend(new Path.Property(this.meta, key)) 
-			nextMeta.__state = () => this.meta.state[key]
-
-			let pp = PathProxy.of( nextMeta, this.lifecycle )
+			
+			let newPath = Path.addParts( this.path, new Path.Property(key))
+			let pp = PathProxy.of( 
+				newPath
+				, this.lifecycle
+				, this.getRootStates 
+				, this.cache
+			)
 
 			this.dependencies.add(pp)
 
+			this.cache[newPath.key] = pp
 			return pp
 		}
 	}
 
-	set(_, key, value){
-		try {
-			return Reflect.set(this.meta.state, key, value)
-		} finally {
-			this.lifecycle.onset(this.proxy[key], value)
+	setSelf(_, handler, visitor){
+		
+		let allowed = this.lifecycle.onbeforeset(handler, visitor)
+		if( !allowed ) {
+			return { updated: false };
 		}
+		let response = 
+			handler.path.set({
+				visitor, states: this.getRootStates() 
+			})
+			
+		if (response.updated) {
+			this.lifecycle.onset(handler, response.states)
+		}
+		return response
+	}
+
+	set(_, key, value){
+		let proxy = this.proxy[key]
+		this.setSelf(_, proxy.$handler, () => value)
+		return true
 	}
 
 	apply(_, __, args){
+
+		let existing = this.valueOf()
 			
-		if( typeof this.meta.state == 'function' ) {
-			return Reflect.apply(this.meta.state, ...args)
+		if( typeof existing == 'function' ) {
+			return Reflect.apply(existing, args)
 		} else if (args.length == 0) {
-			return this.meta.path.last.get(this.meta)[0]
+			return existing
 		} else if (typeof args[0] == 'function'){
-			let value = args[0](this.meta.state)
-			try {
-				return this.meta.path.last.set({ meta: this.meta, value })
-			} finally {
-				this.lifecycle.onset(this.proxy, value)
+			let response = this.setSelf(_, this, args[0])
+			if (response.updated) {
+				return response.states[0]
 			}
+			return undefined
 		} else {
-			try {
-				return this.meta.path.last.set({ meta: this.meta, value: args[0] })
-			} finally {
-				this.lifecycle.onset(this.proxy, args[0])
+			let response = this.setSelf(_, this, () => args[0])
+			if (response.updated) {
+				return response.states[0]
 			}
+			return undefined
 		}
-		 
 	}
 
 	deleteProperty(_, key){
 		// create child or access child
 		// so things like delete users.$values works
 		let child = this.proxy[key]
-		let worked = child.$.path.last.remove(this.meta)
-		if( worked ) return worked
-	
-		return child[key].$delete()
+		return child.$delete()
 	}
 
 }
@@ -180,6 +214,8 @@ export class Lifecycle {
 	oncreate(){}
 	onremove(){}
 	onbeforecreate(){}
+	onbeforeget(_, f){ return f() }
+	onbeforeset(){ return true }
 	onset(){}
 }
 
@@ -191,26 +227,28 @@ export class Lifecycle {
 export class PathProxy {
 	constructor(
 		handler=new Handler()
-		, meta=new Meta()
+		, path=Path.of()
 		, proxy=new Proxy(function(){})
+		, getRootStates
 	){
 		this.handler = handler
 		this.proxy = proxy
-		this.meta = meta
+		this.path = path
+		this.getRootStates = getRootStates
 	}
 
-	static of(meta, lifecycle=new Lifecycle()){
+	static of(path, lifecycle=new Lifecycle(), getRootStates, proxycache){
 
 		{
-			let x = lifecycle.onbeforecreate({ meta })
+			let x = lifecycle.onbeforecreate({ path })
 			if( x ) return x
 		}
 
-		const handler = new Handler(meta, lifecycle)
+		const handler = new Handler(path, lifecycle, getRootStates, proxycache)
 		const proxy = new Proxy(function(){}, handler)
 		handler.proxy = proxy
 
-		let out = new PathProxy(handler, meta, proxy)
+		let out = new PathProxy(handler, path, proxy, getRootStates, proxycache)
 
 		try {
 			return out.proxy

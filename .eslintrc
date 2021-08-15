@@ -50,7 +50,7 @@
 			"warn"
 		],
 		"no-cond-assign": [
-			"warn"
+			"off"
 		],
 		"no-extra-parens": [
 			"warn"
