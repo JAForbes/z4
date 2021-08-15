@@ -10,7 +10,7 @@ export default class Z4 extends Proxy.Lifecycle {
 	dependents = Object.create(null)
 	
 	cachedSubscriptions = Object.create(null)
-	cachedValues = Object.create(null)
+	cachedValues = new Map()
 
 	proxyCache = Object.create(null)
 
@@ -49,10 +49,10 @@ export default class Z4 extends Proxy.Lifecycle {
 	}
 
 	onset(handler, states){
-		this.cachedValues = {}
+		this.cachedValues.clear()
 		
 		let key = handler.$path.key
-		this.cachedValues[key] = states
+		this.cachedValues.set(key, states)
 
 		for( let sub of this.notify(key) ){
 			sub.visitor()
@@ -63,16 +63,16 @@ export default class Z4 extends Proxy.Lifecycle {
 		let path = proxy.$path
 		let key = path.key
 
-		if ( !(key in this.cachedValues) ) {
+		if ( !this.cachedValues.has(key) ) {
 			let got = getter()
-			this.cachedValues[key] = got
+			this.cachedValues.set(key, got)
 		}
-		return this.cachedValues[key]
+		return this.cachedValues.get(key)
 	}
 
 	onremove(){
 		this.cachedSubscriptions = {}
-		this.cachedValues = {}
+		this.cachedValues.clear()
 	}
 	
 	oncreate({ proxy=new Proxy.Handler(), path=Path.of() }){
@@ -80,7 +80,7 @@ export default class Z4 extends Proxy.Lifecycle {
 		// cache.  We can optimize this later if benchmarks show
 		// this is even an issue.
 		this.cachedSubscriptions = {}
-		this.cachedValues = {}
+		this.cachedValues.clear()
 
 		let key = path.key
 		this.proxies[ key ] = proxy
