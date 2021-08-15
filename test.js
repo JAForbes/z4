@@ -7,12 +7,12 @@ test('keys', t => {
     let z = new Z()
 
     t.equals(
-        z.state.a.b.c.$.path.key
+        z.state.a.b.c.$path.key
         , 'a.b.c', 'Basic key'
     )
     t.equals(
         z.state.a.b.c.$values.$filter( (x,y) => x.id == y, [z.state.id])
-            .$.path.key
+            .$path.key
         , 'a.b.c.$values.$filter((x,y) => x.id == y, [id])', 'Complex key'
     )
     t.end()
@@ -21,14 +21,14 @@ test('keys', t => {
 test('get', t => {
 
     let z = new Z()
-    global.tree = z.state()
+    let tree = z.state()
 
     t.doesNotThrow( () => z.state(), 'Can access root state object')
 
     let d = z.state.a.b.c.d
     d(4)
     z.state.a.b.c.d = 4
-    t.equals(z.state.$.state[0].a.b.c.d, 4, 'Nested set')
+    t.equals(tree.a.b.c.d, 4, 'Nested set')
     
     z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
     z.state.id = 2
@@ -46,30 +46,35 @@ test('get', t => {
 
 test('set', t => {
     let z = new Z()
+    let tree = z.state()
+    
     z.state.users = [{ id: 1, name: 'Joe' }, {id: 2, name: 'Jack' }, {id: 3, name: 'James' }]
     z.state.id = 3
 
-    t.equals(z.state.$.state[0].id, 3, 'value')
-    t.equals(z.state.$.state[0].users.map( x => x.id ).join('|'), '1|2|3', 'list')
+    t.equals(tree.id, 3, 'value')
+    t.equals(tree.users.map( x => x.id ).join('|'), '1|2|3', 'list')
 
     z.state.id(5)
-    t.equals(z.state.$.state[0].id, 5, 'value')
+    t.equals(tree.id, 5, 'value')
 
     z.state.id(x => x - 1)
-    t.equals(z.state.$.state[0].id, 5 -1, 'fn')
+    t.equals(tree.id, 5 -1, 'fn')
 
     let not1 = z.state.users.$values.$filter( x => x.id > 1 )
     // should get/set name of each user, not [].name
     let name = not1.name
     name()
-    not1.friends = [1,4]
+    not1.friends = [1,3]
 
     // writing directly to a filter
     not1( x => ({ ...x, additional: true }))
 
-    let a = not1()
-    let b = z.state.users()
-    let c = z.state()
+    t.equals(
+        z.state.users.$values.additional.$all().map( x => typeof x).join('|')
+        ,'undefined|boolean|boolean'
+    )
+
+    z.state.id = 2
 
     let user = 
         z.state
@@ -82,30 +87,50 @@ test('set', t => {
             .$values
             .$filter( (x,ys) => ys.includes(x.id), [user.friends] )
 
-    let d = friends()
-    let e = d
+    t.equals( user.name(), 'Jack', 'User targeted' )
+    t.equals( friends.$values.name.$all().join('|'),  'Joe|James', 'Friends targeted')
+
+    friends.jacksFriend = true
+
+    t.equals(
+        z.state.users.$values.$filter( x => x.jacksFriend).name.$all().join('|'),
+        friends.name.$all().join('|'),
+        'Writing to complex query reflected in new disconnected query state'
+    )
 
     t.end()
 })
 
 test('delete', t => {
     let z = new Z()
+    let tree = z.state()
     z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
 
     delete z.state.users.$values
-    t.equals(z.state.$.state[0].users.length, 0, 'clear list')
+    t.equals(tree.users.length, 0, 'clear list')
 
     delete z.state.users
-    t.equals(z.state.$.users, undefined, 'delete list')
+    t.equals(tree.users, undefined, 'delete list')
 
     z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
+    z.state.users.$filter( xs => xs.length > 1 ).$delete()
 
-    t.equals(z.state.$.state[0].users.map( x => x.id ).join('|'), '1', 'delete matching elements')
+    t.equals(tree.users, undefined, 'delete list if predicate matches pt 1')
+
+    z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
+    z.state.users.$filter( () => false ).$delete()
+
+    t.equals(tree.users.length, 3, 'delete list if predicate matches pt 2')
+
+    z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
+    z.state.users.$values.$filter( x => x.id > 1 ).$delete()
+
+    t.equals(tree.users.map( x => x.id ).join('|'), '3', 'delete matching elements')
 
     z.state.x = 1
     delete z.state.x
 
-    t.equals(z.state.$.state[0].x, undefined, 'Normal property delete')
+    t.equals(tree.x, undefined, 'Normal property delete')
 
     t.end()
 })
@@ -126,7 +151,7 @@ test('dependencies', t => {
         .$values
         .$map( (x,y) => ({ ...x, name: x.name + y }), [z.state.symbol] )
         
-    t.equals(yell.$all().map( x => x.name ).join('|'), 'a!!!|b!!!|c!!!')
+    t.equals(yell.$all().map( x => x.name ).join('|'), 'a!!!|b!!!|c!!!', '$map with deps works')
     t.end()
 })
 

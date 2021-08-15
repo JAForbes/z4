@@ -1,0 +1,4 @@
+- Proxies are now cached per Z instance
+- Fixed property access after a dynamic
+- Removed individual set/get/remove methods in favor of a single pass across all op types
+- Removed meta in favor of path.

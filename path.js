@@ -49,9 +49,11 @@ export class Path {
 	set({ states, visitor }){
 		let stack = this.parts.slice(0, -1)
 		let nextOp;
-		let finalOp = stack.parts.slice(-1)[0]
+		let finalOp = this.parts.slice(-1)[0]
 		states = states.slice()
 		let staticRemaining = this.staticParts.length
+
+		let parents = []
 
 		// skip the setup
 		if ( this.parts.length == 1 ) stack = []
@@ -62,7 +64,9 @@ export class Path {
 
 				if( nextOp instanceof Root) {
 					// no-op	
+					parents = states.slice()
 				} else if ( nextOp instanceof Property ) {
+					parents = states.slice()
 					if( typeof states[i][nextOp.key] == 'undefined' && staticRemaining > 0 ) {
 						states[i][nextOp.key] = {}
 					}
@@ -71,28 +75,43 @@ export class Path {
 				} else if ( nextOp instanceof Transform ) {
 					// we can't set if there is a transform
 					// so break
-					break outer
+					return false
 				} else if ( nextOp instanceof Traverse ) {
-					states = states.flatMap( x => x )
+					let newStates = []
+					let newParents = []
+					for( let i = 0; i < states.length; i++){
+						// eslint-disable-next-line max-depth
+						for( let j = 0; j < states[i].length; j++ ) {
+							let x = states[i][j]
+							newParents.push( states[i] )
+							newStates.push(x)
+						}
+					}
+					parents = newParents
+					states = newStates
+					break inner;
 				} else if ( nextOp instanceof Filter ) {
 					let [ready, deps] = nextOp.ready()
 
-					if (!ready) break outer;
+					if (!ready) return false
 
-					let match = nextOp.visitor(states[i], ...deps)
-					if( !match ) states[i] = undefined
-					
+					for( let i = 0; i < states.length; i++ ) {
+						let match = nextOp.visitor(states[i], ...deps)
+						if( !match ) {
+							states[i] = undefined
+							parents[i] = undefined
+						}
+					}
+
+					states = states.filter( x => typeof x != 'undefined' )
+					parents = parents.filter( x => typeof x != 'undefined')
+
+					break inner;
 				} else {
 					throw 'lol?'
 				}
 			}
 			
-			// todo-james we could splice 
-			// a slice of the states while filtering
-			// in a single pass
-			if( nextOp instanceof Filter ) {
-				states = states.filter( x => typeof x == 'undefined' )
-			}
 
 			if( nextOp.isStatic ) staticRemaining--
 		}
@@ -100,6 +119,7 @@ export class Path {
 		// exited early
 		if( stack.length ) return false;
 
+		let anyChange = false
 		// final write
 		if ( finalOp ) {
 
@@ -109,40 +129,55 @@ export class Path {
 				}
 			} else if ( finalOp instanceof Property ) {
 				for( let i = 0; i < states.length; i++ ) {
-					states[i][finalOp.key] = visitor(states[i][finalOp.key])
+					let plz = visitor(states[i][finalOp.key])
+					if( plz != states[i][finalOp.key] ) {
+						states[i][finalOp.key] = plz
+						anyChange = true
+					}
 				}
 			} else if ( finalOp instanceof Transform ) {
 				return false;
 			} else if ( finalOp instanceof Traverse ) {
-				for( let xs of states ) {
-					for( let i = 0; i < xs.length; i++){
-						xs[i] = visitor(xs[i])
+				for( let i = 0; i < parents.length; i++ ){
+					let j = parents[i].indexOf( states[i] )
+					let plz = visitor(parents[i][j])
+					if (plz != parents[i][j]) {
+						parents[i][j] = plz
+						anyChange = true
 					}
-				}
+				}			
 			} else if ( finalOp instanceof Filter ) {
 				let [ready, deps] = finalOp.ready()
 				if(!ready) return false;
 
-				for( let xs of states ) {
-					for( let i = 0; i < xs.length; i++){
-						let match = finalOp.visitor(xs[i], ...deps)
-						if (!match) continue;
-
-						xs[i] = visitor(xs[i])
+				for( let i = 0; i < parents.length; i++ ){
+	
+					let match = finalOp.visitor(states[i], ...deps)
+					if( !match ) continue;
+					
+					let j = parents[i].indexOf( states[i] )
+					let plz = visitor(parents[i][j])
+					if(plz != parents[i][j] ) {
+						parents[i][j] = plz
+						anyChange = true
 					}
 				}
 			}
 
-			return true
+			return anyChange
 		}
 
 		return false
 	}
 	
 	get({ states }){
+		if (this.parts.length == 0){
+			return states
+		}
+
 		let stack = this.parts.slice(0, -1)
 		let nextOp;
-		let finalOp = stack.parts.slice(-1)[0]
+		let finalOp = this.parts.slice(-1)[0]
 		states = states.slice()
 		let staticRemaining = this.staticParts.length
 
@@ -189,7 +224,7 @@ export class Path {
 			
 			// todo-james one pass
 			if( nextOp instanceof Filter ) {
-				states = states.filter( x => typeof x == 'undefined' )
+				states = states.filter( x => typeof x != 'undefined' )
 			}
 
 			if( nextOp.isStatic ) staticRemaining--
@@ -208,7 +243,7 @@ export class Path {
 					states[i] = states[i][finalOp.key]
 				}
 			} else if ( finalOp instanceof Transform ) {
-				let [ready, deps] = nextOp.ready()
+				let [ready, deps] = finalOp.ready()
 
 				if (!ready) {
 					states = []; break chain;
@@ -220,7 +255,7 @@ export class Path {
 			} else if ( finalOp instanceof Traverse ) {
 				states = states.flatMap( x => x )
 			} else if ( finalOp instanceof Filter ) {
-				let [ready, deps] = nextOp.ready()
+				let [ready, deps] = finalOp.ready()
 
 				if (!ready) {
 					states = []; break chain;
@@ -243,7 +278,7 @@ export class Path {
 	remove({ states }){
 		let stack = this.parts.slice(0, -1)
 		let nextOp;
-		let finalOp = stack.parts.slice(-1)[0]
+		let finalOp = this.parts.slice(-1)[0]
 		states = states.slice()
 
 		// we keep this parents list in sync
@@ -262,6 +297,7 @@ export class Path {
 		// the initial parents index is undefined because
 		// the root has no parent
 		let parents = []
+		let lastPropertyKey;
 
 		// skip the setup
 		if ( this.parts.length == 1 ) stack = []
@@ -283,6 +319,9 @@ export class Path {
 
 					// focus on a new state
 					states[i] = states[i][nextOp.key]
+					// so we can do delete parents[i][lastPropertyKey]
+					// if parents[i] is not a list
+					lastPropertyKey = nextOp.key
 				}
 
 			} else if ( nextOp instanceof Transform ) {
@@ -351,10 +390,16 @@ export class Path {
 	
 					for( let i = 0; i < parents.length; i++ ){
 	
-						let j = parents[i].indexOf( states[i] )
-						parents[i][j] = undefined
-					
-						parentRef.set( parents[i] )
+						if (Array.isArray(parents[i])){
+							let j = parents[i].indexOf( states[i] )
+							parents[i][j] = undefined
+						
+							parentRef.set( parents[i] )
+						} else if(lastPropertyKey) {
+							parents[i][lastPropertyKey].length = 0
+						} else {
+							throw 'lol?'
+						}
 					}
 	
 					// todo-james could move this into a single pass 
@@ -374,7 +419,7 @@ export class Path {
 					}
 				}
 			} else if ( finalOp instanceof Filter ) {
-				let [ready, deps] = this.ready()
+				let [ready, deps] = finalOp.ready()
 
 				if( !ready ) {
 					return false
@@ -382,21 +427,30 @@ export class Path {
 
 				if( parents.length > 0 ) {
 
-					let parentOffset = new Set()
+					let parentOffset = new Map()
 	
 					for( let i = 0; i < parents.length; i++ ){
 	
 						let match = finalOp.visitor(states[i], ...deps)
 						if( !match ) continue;
-						
-						if(!parentOffset.has( parents[i] )){
-							parentOffset.set(parents[i], 0)
+						if( Array.isArray(parents[i]) ) {
+							if(!parentOffset.has( parents[i] )){
+								parentOffset.set(parents[i], 0)
+							}
+							let offset = parentOffset.get(parents[i])
+							let j = parents[i].indexOf( states[i] )
+							parents[i].splice(j-offset, 1)
+							offset++
+							parentOffset.set(parents[i], offset)
+						} else if (lastPropertyKey) {
+							// e.g. deleting a filter with no $values
+							// means, only action this property delete
+							// if the predicate passes
+							// z.state.someFlag.$filter(somePredicate).$delete()
+							delete parents[i][lastPropertyKey]
+						} else {
+							throw 'lol?'
 						}
-						let offset = parentOffset.get(parents[i])
-						let j = parents[i].indexOf( states[i] )
-						parents[i].splice(j-offset, 1)
-						offset++
-						parentOffset.set(parents[i], offset)
 					}
 
 				} else {
@@ -419,6 +473,9 @@ export class Path {
 }
 
 export function addParts(path, ...parts){
+	if( path.parts.length == 0 && path.parts[0] instanceof Root ) {
+		return Path.of(parts)
+	}
 	return path.concat(Path.of(parts))
 }
 
@@ -476,13 +533,8 @@ export class Root extends Op {
 	isStatic = true
 	key = ''
 	
-	constructor(meta){
+	constructor(){
 		super()
-		this.meta = meta
-	}
-
-	get state(){
-		return this.meta.state
 	}
 }
 
@@ -493,17 +545,10 @@ export class Root extends Op {
 export class Property extends Op {
 	rank = 1
 	isStatic = true
-	constructor(parentMeta, meta, key){
+	constructor(key){
 		super()
 		this.key = key
-		this.meta = meta
-		this.parentMeta = parentMeta
 	}
-
-	get state(){
-		return this.meta.state.map( x => x[this.key])
-	}
-
 }
 
 /**
@@ -516,11 +561,10 @@ export class Transform extends Op {
 	rank = 2
 	isStatic = false
 	
-	constructor(meta, visitor, dependencies=[], theirKey=visitor.toString() ){
+	constructor(visitor, dependencies=[], theirKey=visitor.toString() ){
 		super()
 		this.visitor = visitor
-		this.meta = meta
-		this.key = `$map(${theirKey}, [${dependencies.map( x => x.$.path.key ).join(',')}])`
+		this.key = `$map(${theirKey}, [${dependencies.map( x => x.$path.key ).join(',')}])`
 		this.dependencies = dependencies
 	}
 }
@@ -540,12 +584,11 @@ export class Filter extends Op {
 	rank = 3
 	isStatic = false
 	constructor(
-		meta, visitor, dependencies=[], theirKey=visitor.toString() 
+		visitor, dependencies=[], theirKey=visitor.toString() 
 	){
 		super()
 		this.visitor = visitor
-		this.key = `$filter(${theirKey}, [${dependencies.map( x => x.$.path.key ).join(',')}])`
-		this.meta = meta
+		this.key = `$filter(${theirKey}, [${dependencies.map( x => x.$path.key ).join(',')}])`
 		this.dependencies = dependencies
 	}
 }
@@ -558,8 +601,7 @@ export class Traverse extends Op {
 	rank = 4
 	isStatic = false
 	key="$values"
-	constructor(meta){
+	constructor(){
 		super()
-		this.meta = meta
 	}
 }
