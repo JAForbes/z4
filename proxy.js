@@ -136,23 +136,22 @@ export class Handler {
 		
 		let allowed = this.lifecycle.onbeforeset(proxy, visitor)
 		if( !allowed ) {
-			return;
+			return { updated: false };
 		}
 		let response = 
 			proxy.$path.set({
 				visitor, states: this.getRootStates() 
 			})
-
+			
 		if (response.updated) {
 			this.lifecycle.onset(proxy, response.states)
 		}
+		return response
 	}
 
 	set(_, key, value){
 		let proxy = this.proxy[key]
 		this.setSelf(_, proxy, () => value)
-
-		// return true or proxy flips out
 		return true
 	}
 
@@ -165,13 +164,17 @@ export class Handler {
 		} else if (args.length == 0) {
 			return existing
 		} else if (typeof args[0] == 'function'){
-			return this.setSelf(_, this.proxy, args[0])
-		} else {
-			let worked = this.setSelf(_, this.proxy, () => args[0])
-			if (worked) {
-				this.lifecycle.onset(this.proxy, args[0])
+			let response = this.setSelf(_, this.proxy, args[0])
+			if (response.updated) {
+				return response.states[0]
 			}
-			return worked
+			return undefined
+		} else {
+			let response = this.setSelf(_, this.proxy, () => args[0])
+			if (response.updated) {
+				return response.states[0]
+			}
+			return undefined
 		}
 	}
 
