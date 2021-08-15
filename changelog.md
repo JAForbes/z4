@@ -1,3 +1,5 @@
+- Cache proxies earlier in the query process than before
+- Cache all values not just dynamics
 - Use Maps for caches as they can be cleared easily without creating a new reference
 - Proxies are now cached per Z instance
 - Fixed property access after a dynamic

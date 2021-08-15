@@ -287,9 +287,9 @@ test('use cached read/write when preventing set', t => {
 
     t.equals(cacheAccesed, 1, 'Cache was accesed on read after write')
 
-    cacheAccesed = 0
     cachedValues.clear()
     z.state.x()
+    cacheAccesed = 0
     z.state.x = 3
     t.equals(cacheAccesed, 1, 'Cache was accesed on write after read')
     t.end()
