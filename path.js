@@ -79,7 +79,7 @@ export class Path {
 
 					if (!ready) break outer;
 
-					let match = nextOp.visitor(nextOp, ...deps)
+					let match = nextOp.visitor(states[i], ...deps)
 					if( !match ) states[i] = undefined
 					
 				} else {
@@ -87,6 +87,9 @@ export class Path {
 				}
 			}
 			
+			// todo-james we could splice 
+			// a slice of the states while filtering
+			// in a single pass
 			if( nextOp instanceof Filter ) {
 				states = states.filter( x => typeof x == 'undefined' )
 			}
@@ -102,16 +105,32 @@ export class Path {
 
 			if( finalOp instanceof Root ) {
 				for( let i = 0; i < states.length; i++ ) {
-					states[i] = visitor(states[i])
+					visitor(states[i])
 				}
 			} else if ( finalOp instanceof Property ) {
 				for( let i = 0; i < states.length; i++ ) {
-					states[i] = visitor(states[i][finalOp.key])
+					states[i][finalOp.key] = visitor(states[i][finalOp.key])
 				}
 			} else if ( finalOp instanceof Transform ) {
 				return false;
 			} else if ( finalOp instanceof Traverse ) {
-				states = states.flatMap( x => visitor(x) )
+				for( let xs of states ) {
+					for( let i = 0; i < xs.length; i++){
+						xs[i] = visitor(xs[i])
+					}
+				}
+			} else if ( finalOp instanceof Filter ) {
+				let [ready, deps] = finalOp.ready()
+				if(!ready) return false;
+
+				for( let xs of states ) {
+					for( let i = 0; i < xs.length; i++){
+						let match = finalOp.visitor(xs[i], ...deps)
+						if (!match) continue;
+
+						xs[i] = visitor(xs[i])
+					}
+				}
 			}
 
 			return true
@@ -132,22 +151,26 @@ export class Path {
 		
 		outer: while ( nextOp = stack.shift() ) {
 			
-			inner: for( let i = 0; i < states.length; i++ ) {
+			inner: 
 
 				if( nextOp instanceof Root) {
 					// no-op	
 				} else if ( nextOp instanceof Property ) {
-					if( typeof states[i][nextOp.key] == 'undefined' && staticRemaining > 0 ) {
-						states[i][nextOp.key] = {}
+					for( let i = 0; i < states.length; i++ ) {
+						if( typeof states[i][nextOp.key] == 'undefined' && staticRemaining > 0 ) {
+							states[i][nextOp.key] = {}
+						}
+						// focus on a new state
+						states[i] = states[i][nextOp.key]
 					}
-					// focus on a new state
-					states[i] = states[i][nextOp.key]
 				} else if ( nextOp instanceof Transform ) {
 					let [ready, deps] = nextOp.ready()
 
 					if (!ready) break outer;
+					for( let i = 0; i < states.length; i++ ) {
+						states[i] = nextOp.visitor(states[i], ...deps)
+					}
 
-					states[i] = nextOp.visitor(states[i], ...deps)
 				} else if ( nextOp instanceof Traverse ) {
 					states = states.flatMap( x => x )
 				} else if ( nextOp instanceof Filter ) {
@@ -155,14 +178,16 @@ export class Path {
 
 					if (!ready) break outer;
 
-					let match = nextOp.visitor(nextOp, ...deps)
-					if( !match ) states[i] = undefined
+					for( let i = 0; i < states.length; i++ ) {
+						let match = nextOp.visitor(states[i], ...deps)
+						if( !match ) states[i] = undefined
+					}
 					
 				} else {
 					throw 'lol?'
 				}
-			}
 			
+			// todo-james one pass
 			if( nextOp instanceof Filter ) {
 				states = states.filter( x => typeof x == 'undefined' )
 			}
@@ -194,6 +219,20 @@ export class Path {
 				}
 			} else if ( finalOp instanceof Traverse ) {
 				states = states.flatMap( x => x )
+			} else if ( finalOp instanceof Filter ) {
+				let [ready, deps] = nextOp.ready()
+
+				if (!ready) {
+					states = []; break chain;
+				}
+
+				let newStates = []
+				for( let i = 0; i < states.length; i++ ) {
+					let match = finalOp.visitor(states[i], ...deps)
+					if( !match ) continue;
+					newStates.push(states[i])
+				}
+				states = newStates
 			}
 
 			return states
@@ -207,18 +246,34 @@ export class Path {
 		let finalOp = stack.parts.slice(-1)[0]
 		states = states.slice()
 
-		let traverseParent = new Map()
+		// we keep this parents list in sync
+		// with states
+		// so that as states shrinks/expands
+		// the ith state's parent can be found
+		// in parents[i]
+		// this means we don't need to limit
+		// how many transforms occur to the states
+		// list.
+		// previous attempts included a Map
+		// of state => parent
+		// but that doesn't account for primative
+		// values, whereas this does.
+		// 
+		// the initial parents index is undefined because
+		// the root has no parent
+		let parents = []
 
 		// skip the setup
 		if ( this.parts.length == 1 ) stack = []
 		
 		outer: while ( nextOp = stack.shift() ) {
 			
-			inner: for( let i = 0; i < states.length; i++ ) {
+			inner: if( nextOp instanceof Root) {
+				parents = states.slice()
+			} else if ( nextOp instanceof Property ) {
+				parents = states.slice()
 
-				if( nextOp instanceof Root) {
-					// no-op
-				} else if ( nextOp instanceof Property ) {
+				for( let i = 0; i < states.length; i++ ) {
 					if( typeof states[i][nextOp.key] == 'undefined' ) {
 						// we wanted to delete a child path
 						// but even the parent path doesn't exist
@@ -228,58 +283,52 @@ export class Path {
 
 					// focus on a new state
 					states[i] = states[i][nextOp.key]
-				} else if ( nextOp instanceof Transform ) {
-					// if a query has a transform in it
-					// it cannot be deleted or set
-					// fail early
-					return false
-				} else if ( nextOp instanceof Traverse ) {
-					// lift values into result set
-					// we might do a filter afterwards
-					// before deleting so we need to focus
-					// on the right state
-					let newStates = []
-					for( let i = 0; i < states.length; i++){
-						// eslint-disable-next-line max-depth
-						for( let j = 0; j < states[i].length; j++ ) {
-							let x = states[i][j]
-							// we want the first real parent
-							// eslint-disable-next-line max-depth
-							if( !traverseParent.has(states[i])) {
-								traverseParent.set(x, { parent: states[i], index: j })
-							}
-							newStates.push(x)
-						}
+				}
+
+			} else if ( nextOp instanceof Transform ) {
+				// if a query has a transform in it
+				// it cannot be deleted or set
+				// fail early
+				return false
+			} else if ( nextOp instanceof Traverse ) {
+				// lift values into result set
+				// we might do a filter afterwards
+				// before deleting so we need to focus
+				// on the right state
+				let newStates = []
+				let newParents = []
+				for( let i = 0; i < states.length; i++){
+					// eslint-disable-next-line max-depth
+					for( let j = 0; j < states[i].length; j++ ) {
+						let x = states[i][j]
+						newParents.push( states[i] )
+						newStates.push(x)
 					}
-					states = newStates
-				} else if ( nextOp instanceof Filter ) {
-					let [ready, deps] = nextOp.ready()
+				}
+				parents = newParents
+				states = newStates
+			} else if ( nextOp instanceof Filter ) {
+				let [ready, deps] = nextOp.ready()
 
-					if (!ready) break outer;
+				if (!ready) break outer;
 
-					let match = nextOp.visitor(nextOp, ...deps)
+				for( let i = 0; i < states.length; i++ ) {
+					let match = nextOp.visitor(states[i], ...deps)
 					if( !match ) {
 						states[i] = undefined
-					} else {
-						// we want the first real parent
-						// eslint-disable-next-line max-depth
-						if( !traverseParent.has(states[i])) {
-							traverseParent.set(states[i], { parent: states, index: i })
-						}
+						parents[i] = undefined
 					}
-
-					
-				} else {
-					throw 'lol?'
 				}
-			}
-			
-			if( nextOp instanceof Filter ) {
-				states = states.filter( x => typeof x == 'undefined' )
-			}
 
+				// todo-james splice in one pass above
+				states = states.filter( x => typeof x != 'undefined' )
+				parents = parents.filter( x => typeof x != 'undefined')
+
+			} else {
+				throw 'lol?'
+			}
 		}
-
+		
 		// exited early
 		if( stack.length ) return false;
 
@@ -297,60 +346,74 @@ export class Path {
 			} else if ( finalOp instanceof Transform ) {
 				return false;
 			} else if ( finalOp instanceof Traverse ) {
-				// if we are deleting a traverse
-				// we want to clear the list each value originally
-				// belonged to
-				// but how can we _know_ what list the state
-				// originally belonged to
-				// e.g. if we filter a result set, then
-				// run $values to lift the result set
-				// we won't know which state to modify
-				// we can't just go back to the last key
-				// and clear all lists from all states
-				// as a predicate might have opted a state out
-				// or maybe we just need to go back to the last
-				// real key, re apply all filters along the way
-				// on each item, but not actually flatten the list
-				// to do that, we'd need to be able to account
-				// for repeated .$values.$values as an array
-				// could be n-dimensional
-				// maybe everytime we traverse, we store the real path
-				// of each object in the real state list
-				// then we can identify what array to splice?
-
-				// if there was a $values before this one
-				// we'll capture the original state location
-				// so we can edit it in place
-				if( traverseParent.size() > 0 ) {
-
-					let stateSpliceOffset = new Map()
-
-					for( let state of states ){
-						let { parent, index } = traverseParent.get(state)
-						
-						let offset = stateSpliceOffset.get(parent) || 0
-						// edit the list in place
-						parent.splice(index-offset, 1)
-						stateSpliceOffset.set(parent, offset+1)
+				if( parents.length ) {
+					let parentRef = new Set()
+	
+					for( let i = 0; i < parents.length; i++ ){
+	
+						let j = parents[i].indexOf( states[i] )
+						parents[i][j] = undefined
+					
+						parentRef.set( parents[i] )
 					}
-
-				// otherwise this is the only usage of .$values
-				// in the path, and therefore we can just clear the list
-				// at the current address by setting its length to 0
-				// except this doesn't account for filtered lists
-				// if a list was filtered, we're just setting
-				// the filtered list length to 0, not actually removing
-				// the item from the original list
+	
+					// todo-james could move this into a single pass 
+					// above via a Map<parent, offset>
+					for( let parent of parentRef ) {
+						let offset = 0
+						for (let i = 0; i< parent.slice().length; i++){
+							if( typeof parent[i] == 'undefined' ) {
+								parent.splice(i-offset, 1)
+								offset++
+							}
+						}
+					}
 				} else {
 					for( let state of states ) {
 						state.length = 0
 					}
 				}
-			}
+			} else if ( finalOp instanceof Filter ) {
+				let [ready, deps] = this.ready()
 
+				if( !ready ) {
+					return false
+				}
+
+				if( parents.length > 0 ) {
+
+					let parentOffset = new Set()
+	
+					for( let i = 0; i < parents.length; i++ ){
+	
+						let match = finalOp.visitor(states[i], ...deps)
+						if( !match ) continue;
+						
+						if(!parentOffset.has( parents[i] )){
+							parentOffset.set(parents[i], 0)
+						}
+						let offset = parentOffset.get(parents[i])
+						let j = parents[i].indexOf( states[i] )
+						parents[i].splice(j-offset, 1)
+						offset++
+						parentOffset.set(parents[i], offset)
+					}
+
+				} else {
+					let offset = 0;
+					for( let i = 0; i < states.slice().length; i++ ) {
+
+						let match = finalOp.visitor(states[i], ...deps)
+
+						if( match ) {
+							states.splice(i-offset, 1)
+							offset++
+						}
+					}
+				}
+			}
 			return true
 		}
-
 		return false
 	}
 }

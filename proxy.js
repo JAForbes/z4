@@ -84,19 +84,19 @@ export class Handler {
 
 	$delete = () => {
 		try {
-			return this.meta.last.remove(this.meta)
+			return this.meta.path.remove({ states: this.meta.state })
 		} finally {
 			this.lifecycle.onremove(this)
 		}
 	}
 
 	$$all = () => {
-		return this.meta.last.get(this.meta)
+		return this.meta.path.get({ states: this.meta.state })
 	}
 
 	$all = () => {
 		let a = this.proxy
-		let visitor = () => this.meta.last.get(this.meta)
+		let visitor = () => this.$$all
 		let out = this.lifecycle.onbeforeget( 
 			a, visitor
 		)
@@ -106,7 +106,7 @@ export class Handler {
 	valueOf = () => {
 		return this.lifecycle.onbeforeget( 
 			this.proxy
-			, () => this.meta.last.get(this.meta)
+			, () => this.meta.path.get({ states: this.meta.state })
 		)
 		[0]
 	}
@@ -142,8 +142,8 @@ export class Handler {
 	setSelf(_, proxy, visitor){
 		try {
 			this.lifecycle.onbeforeset(proxy)
-			proxy.$.last.set({ 
-				meta: this.meta, visitor, previous: this.$$all() 
+			proxy.$.path.set({
+				visitor, states: this.$$all() 
 			})
 			return true
 		} finally {
@@ -177,7 +177,7 @@ export class Handler {
 		// create child or access child
 		// so things like delete users.$values works
 		let child = this.proxy[key]
-		return child.$.path.last.remove(this.meta)
+		return child.$.path.remove({ states: this.meta.state })
 	}
 
 }
