@@ -76,7 +76,7 @@ export class Path {
 			} else if ( nextOp instanceof Transform ) {
 				// we can't set if there is a transform
 				// so break
-				return false
+				return { updated: false }
 			} else if ( nextOp instanceof Traverse ) {
 				let newStates = []
 				let newParents = []
@@ -94,7 +94,7 @@ export class Path {
 			} else if ( nextOp instanceof Filter ) {
 				let [ready, deps] = nextOp.ready()
 
-				if (!ready) return false
+				if (!ready) return { updated: false }
 
 				for( let i = 0; i < states.length; i++ ) {
 					let match = nextOp.visitor(states[i], ...deps)
@@ -116,7 +116,7 @@ export class Path {
 
 
 		// exited early
-		if( stack.length ) return false;
+		if( stack.length ) return { updated: false };
 
 		let anyChange = false
 		// final write
@@ -135,7 +135,7 @@ export class Path {
 					}
 				}
 			} else if ( finalOp instanceof Transform ) {
-				return false;
+				return { updated: false };
 			} else if ( finalOp instanceof Traverse ) {
 				for( let i = 0; i < parents.length; i++ ){
 					let j = parents[i].indexOf( states[i] )
@@ -147,7 +147,7 @@ export class Path {
 				}			
 			} else if ( finalOp instanceof Filter ) {
 				let [ready, deps] = finalOp.ready()
-				if(!ready) return false;
+				if(!ready) return { updated: false };
 
 				for( let i = 0; i < parents.length; i++ ){
 	
@@ -163,10 +163,10 @@ export class Path {
 				}
 			}
 
-			return anyChange
+			return { updated: anyChange }
 		}
 
-		return false
+		return { updated: false }
 	}
 	
 	get({ states }){

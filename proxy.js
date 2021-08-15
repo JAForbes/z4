@@ -135,12 +135,12 @@ export class Handler {
 	setSelf(_, proxy, visitor){
 		
 		this.lifecycle.onbeforeset(proxy)
-		let worked = 
+		let response = 
 			proxy.$path.set({
 				visitor, states: this.getRootStates() 
 			})
 
-		if (worked) {
+		if (response.updated) {
 			this.lifecycle.onset(proxy)
 		}
 	}
