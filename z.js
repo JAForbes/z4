@@ -59,6 +59,18 @@ export default class Z4 extends Proxy.Lifecycle {
 		}
 	}
 
+	onbeforeset(proxy, visitor){
+		let key = proxy.$path.key
+
+		if ( this.cachedValues.has(key) ) {
+				for(let state of this.cachedValues.get(key) ){
+						if( state == visitor(state) ) return false;
+				}
+		}
+
+		return true;
+	}
+
 	onbeforeget(proxy, getter){
 		let path = proxy.$path
 		let key = path.key

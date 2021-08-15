@@ -134,7 +134,10 @@ export class Handler {
 
 	setSelf(_, proxy, visitor){
 		
-		this.lifecycle.onbeforeset(proxy)
+		let allowed = this.lifecycle.onbeforeset(proxy, visitor)
+		if( !allowed ) {
+			return;
+		}
 		let response = 
 			proxy.$path.set({
 				visitor, states: this.getRootStates() 
@@ -192,7 +195,7 @@ export class Lifecycle {
 	onremove(){}
 	onbeforecreate(){}
 	onbeforeget(_, f){ return f() }
-	onbeforeset(){}
+	onbeforeset(){ return true }
 	onset(){}
 }
 
