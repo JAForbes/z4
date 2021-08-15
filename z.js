@@ -4,13 +4,13 @@ import * as Proxy from './proxy.js'
 import { Path } from './path.js'
 
 export default class Z4 extends Proxy.Lifecycle {
-	subscriptions = {}
-	proxies = {}
-	dependencies = {}
-	dependents = {}
+	subscriptions = Object.create(null)
+	proxies = Object.create(null)
+	dependencies = Object.create(null)
+	dependents = Object.create(null)
 	
-	cachedSubscriptions = {}
-	cachedValues = {}
+	cachedSubscriptions = Object.create(null)
+	cachedValues = Object.create(null)
 
 	proxyCache = Object.create(null)
 
