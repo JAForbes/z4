@@ -1,3 +1,5 @@
+- Added iterator support to queries
+- realised get can't be an iterator because we want to cache the complete list, plus it is barely a perf improvement unless I rework get completely, and I just did that
 - .$default, useful for ensuring values in the view
 - Generally, pass handler around internally instead of proxy
 - Fix conditional writes with filter

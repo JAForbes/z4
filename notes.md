@@ -10,17 +10,4 @@ And there should be a way for a write to promise a mutation will not change the 
 
 But I guess the way to do that is a mutation.  But then notifications wouldn't fire.
 
----
-
-Could make `get` exit early once we have a single result
-as most of the time we are getting 1 value out of a query.
-
-But this would only speed up get if the finalOp was a very long list
-
-E.g. a pluck on a list of 1000 items where you only want one.
-
-Instead of passing down that we only want 1, we could use a generator and yield per result.
-
-`.$all` could be [...get()] and `query()` could be `get().next().value`
-
 On that note, queries should be iterators.

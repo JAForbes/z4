@@ -312,4 +312,15 @@ test('.$default', t => {
     t.end()
 })
 
+test('iterator support', t => {
+    let z = new Z()
+
+    z.state.users = [{ id: 1, name: 'a' }, { id: 2, name: 'b' }, { id: 3, name: 'c' }]
+
+    let out = []
+    for(let x of z.state.users.$values.id){
+        out.push(x)
+    }
+    t.equals(out.join('|'), '1|2|3', 'Queries can use for loops')
+})
 // test('deferrable subscriptions')

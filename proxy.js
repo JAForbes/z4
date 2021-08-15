@@ -95,6 +95,10 @@ export class Handler {
 		return x
 	}
 
+	*[Symbol.iterator] (){
+		yield * this.$all()
+	}
+
 	valueOf = () => {
 		return this.lifecycle.onbeforeget( 
 			this
@@ -111,6 +115,8 @@ export class Handler {
 
 		if( key in this.cache ) {
 			return this.cache[key]
+		} else if (key == Symbol.iterator) {
+			return this[key]
 		} else if(typeof key == 'symbol' ) { 
 			let value = this.valueOf()
 			if( typeof value == 'undefined'){
