@@ -322,5 +322,6 @@ test('iterator support', t => {
         out.push(x)
     }
     t.equals(out.join('|'), '1|2|3', 'Queries can use for loops')
+    t.end()
 })
 // test('deferrable subscriptions')

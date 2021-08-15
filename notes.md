@@ -9,5 +9,3 @@ Only the second write needs to run the full set loop.
 And there should be a way for a write to promise a mutation will not change the result of the filter.
 
 But I guess the way to do that is a mutation.  But then notifications wouldn't fire.
-
-On that note, queries should be iterators.
