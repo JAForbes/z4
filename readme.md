@@ -12,43 +12,49 @@ What is it?
 
 Z4 is the next generation of functional UI reactive state.  It takes lessons from streams, lenses and atoms but is ultimately something new.
 
-The biggest difference between Z4 and other approaches is that Z4 behaves a lot more like a client side reactive database that was designed specifically for managing UI state.
-
-In Z4 you query for state that may or may not exist, and these queries can be subscribed and written back to.  When you write to a query the state doesn't live inside the query, it lives in the state tree itself or within various centralized managed caches.
-
-Because Z4 is centrally managed, many optimizations can be introduced that are impossible with streams and lenses.  Z4 knows exactly what caches need to be updated, and in what order.  It can often skip or defer work as it knows who and what is accessing the state.  It can perform actions on write, on read and on propagation instead of performing them immediately.
-
-The debugging experience is improved by the fact all queries have a named position in the tree defined by the way the query was defined.
-
-E.g. if you are accessing `user.user_name` the query is called `"user.user_name"`.  
-
-Additionally Z4 manages the internal state, so it takes this opportunity to safely use mutation.  This leads to performance in improvements as all static query values are always in sync with the tree as they have a lazy reference to a mutable state tree.
-
-Subscriptions are a place to listen to changes in queries and perform side effects.  This is where your application code can perform network requests or effects.  Subscriptions are always called after the tree has fully propagated.  Any writes to the tree are deferred by default until the subscription exits, except if the subscription `yield`'s control back to `Z4` via a generator function.
-
-Z4 is in a word controlled.  Other solutions are elegant in their implementation but not in their runtime debugging experience.  Z4 is the largely the opposite.  The source code is filled with if statements, multiple caches, many duplicated entry points (to avoid call stacks) and so on.  But this is all to improve performance and runtime clarity.
+The biggest difference between Z4 and other approaches is that Z4 behaves a lot more like a client side reactive database that was designed specifically for managing UI state and effects.
 
 How does it work?
 -----------------
 
 ```js
+// 🚨 Not all implemented yet + API constantly in flux
 const { state } = Z()
 
 // This is a query
-const c = state.a.b.c
+let currentUser = 
+    state.users
+        .$values
+        .$filter( 
+            (x, route) => x.id == route.user_id
+            , [state.route]
+        )
 
-// I can write to it
-c('hello')
+// only writes to the shared tree
+// when the function exits cleanly
+z.transaction([currentUser], async function (){
+    // z.fetch is optional
+    // it just auto cancels requests for you
+    // if the transaction throws
+    let { metadata } = await z.fetch('/api/users/' + currentUser.id)
 
-// And the change is reflected elsewhere in the tree
-b()
-{ c: 'hello' }
+    currentUser.metadata = metadata
+})
 
-// I can subscribe to changes
-c.$on( value => console.log('hello', value) )
+state.route.id  = 2
 
-// I can also transform it
-let C = b.$map( x => x.toUpperCase() +'!' )
+state.users = [{ id: 1, name: 'Joe' }, { id: 2, name: 'James' }]
+
+currentUser.name()
+// 'James'
+
+🐰🎩
+currentUser.name = 'Barney'
+
+state.users()
+[{ id: 1, name: 'Joe' }, { id: 2, name: 'Barney' }]
+
+
 ```
 
 Queries

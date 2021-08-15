@@ -58,63 +58,62 @@ export class Path {
 		// skip the setup
 		if ( this.parts.length == 1 ) stack = []
 		
-		outer: while ( nextOp = stack.shift() ) {
+		while ( nextOp = stack.shift() ) {
 			
-			inner: for( let i = 0; i < states.length; i++ ) {
-
-				if( nextOp instanceof Root) {
-					// no-op	
-					parents = states.slice()
-				} else if ( nextOp instanceof Property ) {
-					parents = states.slice()
+			inner: 
+			if( nextOp instanceof Root) {
+				// no-op	
+				parents = states.slice()
+			} else if ( nextOp instanceof Property ) {
+				parents = states.slice()
+				for( let i = 0; i < states.length; i++ ) {
 					if( typeof states[i][nextOp.key] == 'undefined' && staticRemaining > 0 ) {
 						states[i][nextOp.key] = {}
 					}
 					// focus on a new state
 					states[i] = states[i][nextOp.key]
-				} else if ( nextOp instanceof Transform ) {
-					// we can't set if there is a transform
-					// so break
-					return false
-				} else if ( nextOp instanceof Traverse ) {
-					let newStates = []
-					let newParents = []
-					for( let i = 0; i < states.length; i++){
-						// eslint-disable-next-line max-depth
-						for( let j = 0; j < states[i].length; j++ ) {
-							let x = states[i][j]
-							newParents.push( states[i] )
-							newStates.push(x)
-						}
-					}
-					parents = newParents
-					states = newStates
-					break inner;
-				} else if ( nextOp instanceof Filter ) {
-					let [ready, deps] = nextOp.ready()
-
-					if (!ready) return false
-
-					for( let i = 0; i < states.length; i++ ) {
-						let match = nextOp.visitor(states[i], ...deps)
-						if( !match ) {
-							states[i] = undefined
-							parents[i] = undefined
-						}
-					}
-
-					states = states.filter( x => typeof x != 'undefined' )
-					parents = parents.filter( x => typeof x != 'undefined')
-
-					break inner;
-				} else {
-					throw 'lol?'
 				}
-			}
-			
+			} else if ( nextOp instanceof Transform ) {
+				// we can't set if there is a transform
+				// so break
+				return false
+			} else if ( nextOp instanceof Traverse ) {
+				let newStates = []
+				let newParents = []
+				for( let i = 0; i < states.length; i++){
+					// eslint-disable-next-line max-depth
+					for( let j = 0; j < states[i].length; j++ ) {
+						let x = states[i][j]
+						newParents.push( states[i] )
+						newStates.push(x)
+					}
+				}
+				parents = newParents
+				states = newStates
+				break inner;
+			} else if ( nextOp instanceof Filter ) {
+				let [ready, deps] = nextOp.ready()
 
+				if (!ready) return false
+
+				for( let i = 0; i < states.length; i++ ) {
+					let match = nextOp.visitor(states[i], ...deps)
+					if( !match ) {
+						states[i] = undefined
+						parents[i] = undefined
+					}
+				}
+
+				states = states.filter( x => typeof x != 'undefined' )
+				parents = parents.filter( x => typeof x != 'undefined')
+
+				break inner;
+			} else {
+				throw 'lol?'
+			}
 			if( nextOp.isStatic ) staticRemaining--
 		}
+
 
 		// exited early
 		if( stack.length ) return false;
