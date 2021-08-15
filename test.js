@@ -238,4 +238,61 @@ test('caching dynamics', t => {
     t.end()
 })
 
+test('caching proxies', t => {
+    let z = new Z()
+
+    t.equals(z.state.a.b.c.d == z.state.a.b.c.d, true, 'Proxies are cached')
+    t.end()
+})
+
+test('use cached read/write when preventing set', t => {
+
+    let xs = []
+    let original = Z.prototype.onbeforeset
+    let cachedValues = new Map()
+    let cacheAccesed = 0
+    class Z2 extends Z {
+        cachedValues = new Proxy(cachedValues, {
+            get(target, key){
+                if( key == 'get' ) {
+                    cacheAccesed++
+                } 
+                
+                if( typeof target[key] == 'function' ) {
+                    return (...args) => target[key](...args)
+                }
+                return Reflect.get(target, key)
+            }
+        })
+        onbeforeset(...args){
+            let allowed = original.call(this, ...args)
+            xs.push(allowed)
+            return allowed
+        }
+    }
+
+    let z = new Z2()
+
+    cacheAccesed = 0
+    z.state.x = 2
+    z.state.x = 2
+    t.equals(cacheAccesed, 1, 'Cache was accesed on write')
+
+    t.equals(xs.join('|'), 'true|false', 'Set prevented by reading cache on second write')
+
+    cacheAccesed = 0
+    cachedValues.clear()
+    z.state.x = 3
+    z.state.x()
+
+    t.equals(cacheAccesed, 1, 'Cache was accesed on read after write')
+
+    cacheAccesed = 0
+    cachedValues.clear()
+    z.state.x()
+    z.state.x = 3
+    t.equals(cacheAccesed, 1, 'Cache was accesed on write after read')
+    t.end()
+})
+
 // test('deferrable subscriptions')
