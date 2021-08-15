@@ -141,7 +141,7 @@ export class Handler {
 			})
 
 		if (response.updated) {
-			this.lifecycle.onset(proxy)
+			this.lifecycle.onset(proxy, response.states)
 		}
 	}
 
