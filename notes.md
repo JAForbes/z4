@@ -1,11 +1,3 @@
-Pass handler around instead of proxy
-
----
-
-.$default
-
---- 
-
 When checking parents list we can have the index at the time the parent was stored, check that first, and only fall back to indexOf if the result was a primative value or if it was the wrong reference.  For a lot of queries the index we stored for the parent will be the correct index, saves a (hidden) loop
 
 ---

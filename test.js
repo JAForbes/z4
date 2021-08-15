@@ -295,4 +295,21 @@ test('use cached read/write when preventing set', t => {
     t.end()
 })
 
+test('.$default', t => {
+
+    let z = new Z()
+
+    let a = z.state.a.b.c.d.$default(4)
+    
+    z.state.a.b.c.d(5)
+    
+    let b = z.state.a.b.c.d.$default(4)
+
+    t.equals(a, 4, 'Default works when valueOf returns undefined')
+
+    t.equals(b, 5, 'Default returns real value when valueOf != undefined')
+
+    t.end()
+})
+
 // test('deferrable subscriptions')

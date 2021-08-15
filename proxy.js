@@ -87,6 +87,14 @@ export class Handler {
 		return out
 	}
 
+	$default = (otherwise) => {
+		let x = this.valueOf()
+		if( typeof x == 'undefined' ) {
+			return otherwise
+		}
+		return x
+	}
+
 	valueOf = () => {
 		return this.lifecycle.onbeforeget( 
 			this

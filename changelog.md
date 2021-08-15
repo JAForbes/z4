@@ -1,3 +1,5 @@
+- .$default, useful for ensuring values in the view
+- Generally, pass handler around internally instead of proxy
 - Fix conditional writes with filter
 - Prevent write/traversal if result has same equality
 - Cache value on write as well as read
