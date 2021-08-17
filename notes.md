@@ -1,3 +1,19 @@
+Generators are essential for MVCC because it allows Z to call it.throw()/it.return() no matter what is happening.
+
+E.g. if committing a transaction causes the dispatch of another transaction of the same ilk, based on the options given by the user the existing transaction could be aborted in favor of the new one, the new transaction could be cancelled, the new transaction could delay execution until the current transaction exits cleanly.  
+
+If we are just relying on rollback when an exception originates inside the transaction context, we can't cancel a transaction generically.
+
+---
+
+When resolving a transaction changeset to the main tree, should I clear the cachedValues every write?
+
+If so, why store the cached value per write, if we are just going to clear it in a moment.
+
+Effectively the cache is only useful when only 1 write is occur, but for a series of batched writes, we cannot rely on it.  The cache could become stale after each write.  So calling onset is a bad idea.
+
+---
+
 MVCC
 
 ---

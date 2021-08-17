@@ -29,7 +29,7 @@ export default class Z4 extends Proxy.Lifecycle {
 		this.hyperscript = Hyperscript(this)
 	}
 
-	notify(key){
+	notifications(key){
 		if( key in this.cachedSubscriptions ) return this.cachedSubscriptions[key]
 		let subs = new Set()
 		let xs = [key, ...this.dependents[key]]
@@ -54,7 +54,7 @@ export default class Z4 extends Proxy.Lifecycle {
 		let key = handler.path.key
 		this.cachedValues.set(key, states)
 
-		for( let sub of this.notify(key) ){
+		for( let sub of this.notifications(key) ){
 			sub.visitor()
 		}
 	}

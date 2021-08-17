@@ -20,9 +20,12 @@ class Mutation {
 
 export default class Transaction extends Z4 {
 
-	static State = class State {
+	static state = class State {
 		static Pending = class Pending extends State {}
+		static Running = class Running extends State {}
+		static Rollback = class Rollback extends State {}
 		static Aborted = class Aborted extends State {}
+		static Replaying = class Running extends State {}
 		static Committed = class Committed extends State {}
 	}
 
@@ -32,7 +35,7 @@ export default class Transaction extends Z4 {
 
 		this.parent = zz
 		this.path = Path.of()
-
+		this.state = new this.state.Pending()
 		this.visitor = visitor
 
 		this.states = zz.root.$all().map( x => Object.create(x) )
@@ -49,8 +52,18 @@ export default class Transaction extends Z4 {
 	}
 
 	async run(){
-		await this.visitor(this.root)
-		this.replayMutations()
+		if ( this.state instanceof this.state.Pending ) {
+			try {
+				this.state = new this.state.Running()
+				await this.visitor(this.root)
+				this.state = new this.state.Replaying()
+				await this.replayMutations()
+				this.state = new this.state.Committed()
+			} catch (e) {
+				this.state = new this.state.Aborted(e)
+			}
+		}
+		
 	}
 
 	onset(handler, states, visitor){
@@ -70,8 +83,19 @@ export default class Transaction extends Z4 {
 		this.mutations.set(key, new Mutation.Remove(handler))
 	}
 
-	replayMutations(){
+	/**
+	 * Writes all mutations that occured in the transaction
+	 * back to the main state tree.
+	 * 
+	 * But we tell the parent instance to not notify yet.
+	 * Because we want the entire set of writes to resolve
+	 * before yet another transaction starts that will trigger
+	 * the same writes and we never get to a point where
+	 * the full changeset resolves.
+	 */
+	async replayMutations(){
 		let states = this.parent.$$all() 
+		let notifications = []
 		for( let mutation of Object.values(this.mutations) ) {
 			
 			if( mutation instanceof Mutation.Set ) {
@@ -82,9 +106,8 @@ export default class Transaction extends Z4 {
 				if( !response.updated ) {
 					throw new Error('Commit failed, state only partially resolved.')
 				}
-
-				this.parent.onset(this.handler, response.states)
-				
+				notifications.push({ mutation, states: response.states })
+		
 			} else if ( mutation instanceof Mutation.Remove ) {
 				let worked = mutation.path.remove({ 
 					states
@@ -94,8 +117,26 @@ export default class Transaction extends Z4 {
 					throw new Error('Commit failed, state only partially resolved.')
 				}
 
-				this.parent.onremove()
+				notifications.push({ mutation })
 			}
 		}
+
+		this.parent.cachedValues.clear()
+
+		let subs = new Set()
+		for( let notification of notifications ) {
+			let key = notification.mutation.handler.path.key
+			for( let sub of this.parent.notifications(key) ){
+				subs.add(sub)
+			}
+		}
+
+		for( let sub of subs ) {
+			// this is where a new transaction should
+			// be created and injected
+			let t = new Transaction(this.parent, ctx => sub.visitor(ctx))
+			await t.run()
+		}
+
 	}
 }

@@ -111,10 +111,12 @@ z([z.state.a.b.c], function * effect(z){
 })
 ```
 
-You do not have to use generators, you can use async await.  But generators are encouraged as they allow Z4 to track effects within your transaction.
+We use instead of async/await is because generator execution can be cancelled externally.  This allows Z4 and the user to configure what should happen when the same transaction is initiated twice via two different events concurrently.
+
+The default behavior would be to abort the existing transaction and start the new one, but there are other desired behaviors such as allowing the existing transaction to complete and throttling new instantiations of the same service by a desired threshold.  It depends if you want the latest value, any value, or all values.
 
 ```js
-z([z.state.a.b.c], async function (z){
+z([z.state.a.b.c], function * (z){
 
     z.state.loading = true
 
@@ -122,14 +124,15 @@ z([z.state.a.b.c], async function (z){
     // if it throws, any state changes within
     // this transaction will be automatically
     // rolled back
-    let response = await z.fetch(
+    let response = yield z.fetch(
         '/api/data'
         , 
         { method: 'POST'
         , body: JSON.stringify(z.state.a.b.c()) 
         }
     )
-    .then( x => x.json() )
+
+    response = yield response.json()
 
     // We can write back to the tree
     // but outside of this service
@@ -143,7 +146,8 @@ z([z.state.a.b.c], async function (z){
 Few things to note from this sample.  
 
 - Setting a query value to what it already is, is a no-op.  So there is no need to check that the existing value does not already equal the value you are setting it to.
-- `z.fetch` is just `fetch` but will automatically cancel network requests when a service is cancelled and can be replaced with alternative implementations for testing or for supporting older environments.  You can use native fetch if you want, or any other promise returning function, but you will need to handle cancellation yourself.
+- `z.fetch` is like `fetch` but will automatically cancel network requests when a service is cancelled and can be replaced with alternative implementations for testing or for supporting older environments.  Additionally it doesn't execute when you invoke it, but when it is yielded.  It also does not return a promise so `.then` chaining will not work.  You can use native fetch if you want, or any other promise returning function, but you will need to handle cancellation yourself.
+- You can easily add your own effects to Z's transaction interpreter.  Simply yield a value that your own middleware can handle.  See [middleware](./middleware.md)
 
 
 Promises
