@@ -1,5 +1,5 @@
 import * as Path from './path.js'
-import { Handler, Lifecycle } from './proxy.js'
+import * as Proxy from './proxy.js'
 import Z4 from './z.js'
 
 class Mutation {
@@ -29,16 +29,16 @@ export default class Transaction extends Z4 {
 		static Committed = class Committed extends State {}
 	}
 
-	constructor(zz, visitor=async function(){}){
+	constructor(zz=new Z4(), visitor=async function(){}){
 		super()
 
 
 		this.parent = zz
-		this.path = Path.of()
-		this.state = new this.state.Pending()
+		this.path = Path.Path.of()
+		this._state = new Transaction.state.Pending()
 		this.visitor = visitor
 
-		this.states = zz.root.$all().map( x => Object.create(x) )
+		this.states = zz.state.$$all().map( x => Object.create(x) )
 
 		this.root = Proxy.PathProxy.of(
 			this.path
@@ -48,22 +48,50 @@ export default class Transaction extends Z4 {
 		)
 
 		this.mutations = new Map()
-		this.state = new Transaction.state.Pending()
+		this._state = new Transaction.state.Pending()
 	}
 
 	async run(){
-		if ( this.state instanceof this.state.Pending ) {
+		if ( this._state instanceof Transaction.state.Pending ) {
 			try {
-				this.state = new this.state.Running()
-				await this.visitor(this.root)
-				this.state = new this.state.Replaying()
+				this._state = new Transaction.state.Running()
+
+				await this.invokeVisitor( () => this.visitor(this.root) )
+
+				this._state = new Transaction.state.Replaying()
 				await this.replayMutations()
-				this.state = new this.state.Committed()
+				this._state = new Transaction.state.Committed()
 			} catch (e) {
-				this.state = new this.state.Aborted(e)
+				this._state = new Transaction.state.Aborted(e)
+				throw e
 			}
 		}
 		
+	}
+
+
+	invokeVisitor(visitor){
+		let it = visitor()
+	
+		// expose so it can be cancelled externally
+		this.iterator = it
+
+		async function interpret(any){
+	
+			try {
+				if ( any.value instanceof Promise ) {
+					return any.value
+						.then( x => interpret(it.next(x)), e => interpret(it.throw(e)) )
+				} else if ( !any.done ) {
+					return interpret(it.next(any.value))
+				}
+			} catch (e) {
+				console.error(e)
+			}
+		}
+
+	
+		return interpret(it.next())
 	}
 
 	onset(handler, states, visitor){
@@ -94,7 +122,7 @@ export default class Transaction extends Z4 {
 	 * the full changeset resolves.
 	 */
 	async replayMutations(){
-		let states = this.parent.$$all() 
+		let states = this.parent.state.$$all() 
 		let notifications = []
 		for( let mutation of Object.values(this.mutations) ) {
 			

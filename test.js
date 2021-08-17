@@ -1,6 +1,6 @@
 import test from 'tape'
 import Z from './z.js'
-
+import Transaction from './transaction.js'
 
 test('keys', t => {
     
@@ -324,4 +324,17 @@ test('iterator support', t => {
     t.equals(out.join('|'), '1|2|3', 'Queries can use for loops')
     t.end()
 })
-// test('deferrable subscriptions')
+
+test.only('deferrable subscriptions', async t => {
+    let z = new Z()
+
+    let a = new Transaction(z, function * example (z){
+        yield new Promise( Y => setTimeout(Y, 10 ))
+        yield new Promise( Y => setTimeout(Y, 10 ))
+        yield new Promise( Y => setTimeout(Y, 10 ))
+    })
+
+    await a.run()
+
+    t.end()
+})
