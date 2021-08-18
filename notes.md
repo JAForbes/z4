@@ -1,8 +1,6 @@
-Need:
+Add z.drain to help with async tests.
 
-    - t.pending
-    - t.ended
-    - t.cancel()
+z.drain will resolve when all transactions running at the time of invocation finish.
 
 ---
 

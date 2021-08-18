@@ -2,6 +2,8 @@ import * as Path from './path.js'
 import * as Proxy from './proxy.js'
 import Z4 from './z.js'
 
+class CancellationError extends Error {}
+
 class Mutation {
 	handler = new Proxy.Handler(
 		Path.Path.of(), new Proxy.Lifecycle(), () => [], new Map()
@@ -97,11 +99,31 @@ export default class Transaction {
 			} else if ( !any.done ) {
 				return interpret(it.next(any.value))
 			} else {
+				it.return()
 				return null;
 			}
 		}
 
 		return interpret(it.next())
+	}
+
+	cancel(){
+		if( this._state instanceof Transaction.state.Running ) {
+			this.iterator.throw( new CancellationError() )
+		}
+	}
+
+	get ended(){
+		return (
+			this._state instanceof Transaction.state.Committed
+			|| this._state instanceof Transaction.state.Rollback
+		)
+	}
+
+	get pending(){
+		return (
+			this._state instanceof Transaction.state.Pending
+		)
 	}
 
 	/**

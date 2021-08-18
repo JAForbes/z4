@@ -136,6 +136,7 @@ export default class Z4 extends Proxy.Lifecycle {
 
 		for( let service of this.notifications(key) ){
 			let t;
+			let key = service.key
 			let existing = this.transactions.get(key)
 
 			let { debounce=0, preferLatest=true } = service.options
@@ -144,8 +145,11 @@ export default class Z4 extends Proxy.Lifecycle {
 			// and if we should cancel the running one
 			if( preferLatest && existing && !existing.ended ) {
 				existing.cancel()
+				t = new Transaction(this, service.visitor, service.options)
+				this.transactions.set(key, t)
 			} else if( !existing || existing.ended ) {
 				t = new Transaction(this, service.visitor, service.options)
+				this.transactions.set(key, t)
 			} else if ( existing.pending ) {
 				t = existing
 			}
@@ -167,6 +171,7 @@ export default class Z4 extends Proxy.Lifecycle {
 			} else {
 				// otherwise run the new one immediately
 				t.run().catch( () => {} )
+				
 			}
 		}
 	}

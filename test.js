@@ -363,13 +363,17 @@ test('service cancellation', async t => {
     let immediate = Promise.resolve()
     let promises = [forever, immediate]
 
-    let count = { finally: 0, try: 0, catch: 0 }
-    z.service([z.state.a], function * (){ 
+    let count = { finally: 0, try: 0, catch: 0, completed: 0 }
+    let err;
+    z.service([z.state.a], function * (z){ 
         try {
             count.try++
+            z.state.promisesLength = promises.length
             yield promises.shift()
+            count.completed++
         } catch (e) {
             count.catch++
+            err = e
         } finally {
             count.finally++
         }
@@ -377,8 +381,20 @@ test('service cancellation', async t => {
 
     z.state.a = 1
     await Promise.resolve()
+    let firstLength = z.state.promisesLength()
     z.state.a = 2
 
-    
+    // await z.drain()
+    await new Promise( Y => setTimeout(Y, 50))
+    let secondLength = z.state.promisesLength()
+
+    t.equal(count.finally, 2, 'Finally always called')
+    t.equals(count.try, 2, 'Service started once per invocation')
+    t.equals(count.catch, 1, 'First was cancelled (1/2)')
+    t.equals(err.constructor.name, 'CancellationError', 'First was cancelled (2/2)')
+    t.equals(count.completed, 1, 'Second service completed')
+    t.equals(firstLength, undefined, 'Cancelled write never merged upstream')
+    t.equals(secondLength, 1, 'Clean exit commit changes to tree')
+
     t.end()
 })
