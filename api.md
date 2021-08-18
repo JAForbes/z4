@@ -82,11 +82,13 @@ Creates a read only query that transforms state using the user provided visitor 
 
 ### `options`
 
-- `options.latest` `(true)` Cancels existing running transactions when new values are received.
+#### `options.preferLatest` `(true)` 
 
-- `options.debounce` `(0)` The number of milliseconds to wait before commencing a new transaction when a new value is received if a transaction is already running.
+Whether to cancel the new or previous transaction when a service is triggered
 
-- `options.delay` `(0)` The number of milliseconds to wait before commencing a new transaction whether or not a transaction is already running.
+#### `options.debounce` `(0)` 
+
+The number of milliseconds to wait before commencing a new transaction when a new value is received if a transaction is already running.
 
 ### ServiceInstance
 

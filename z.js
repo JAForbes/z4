@@ -1,3 +1,4 @@
+/* globals clearTimeout, setTimeout */
 import Hyperscript from './h.js'
 import Component from './component.js'
 import * as Proxy from './proxy.js'
@@ -5,7 +6,12 @@ import { Path } from './path.js'
 import Transaction from './transaction.js'
 
 class Service {
-	constructor(dependencies, visitor, options, key){
+	constructor(
+		dependencies
+		, visitor
+		, options={ latest: true, delay: 0, debounce: 0 }
+		, key
+	) {
 		this.dependencies = dependencies
 		this.visitor = visitor
 		this.options = options
@@ -29,6 +35,11 @@ export default class Z4 extends Proxy.Lifecycle {
 	proxyCache = Object.create(null)
 
 	transactions = new Map()
+	services = new Map()
+
+	setTimeout = setTimeout
+	clearTimeout = clearTimeout
+	timers = new Map()
 
 	constructor(state={}){
 		super()
@@ -51,9 +62,9 @@ export default class Z4 extends Proxy.Lifecycle {
 		, options={ latest: true }
 		, key=`z.service([${dependencies.map( x => x.$path.key )}], ${visitor.toString()})`
 	){
-		if( !( key in this.subscriptions) ) {
+		if( ! this.services.has(key) ) {
 			let service = new Service(dependencies, visitor, options, key)
-			this.subscriptions[key] = service
+			this.services.set(key, service)
 
 			// we only need to associate our explicit dependencies
 			// with this service
@@ -80,7 +91,7 @@ export default class Z4 extends Proxy.Lifecycle {
 			}
 		}
 		
-		return this.subscriptions[key]
+		return this.services.get(key)
 	}
 
 	/**
@@ -112,7 +123,7 @@ export default class Z4 extends Proxy.Lifecycle {
 	
 	clearValueCache(){
 		this.cachedValues.clear()
-		for( let t of this.transactions ) {
+		for( let t of this.transactions.values() ) {
 			t.z.cachedValues.clear()
 		}
 	}
@@ -124,7 +135,39 @@ export default class Z4 extends Proxy.Lifecycle {
 		this.cachedValues.set(key, states)
 
 		for( let service of this.notifications(key) ){
-			service.run()
+			let t;
+			let existing = this.transactions.get(key)
+
+			let { debounce=0, preferLatest=true } = service.options
+
+			// whether or not to create a new transaction
+			// and if we should cancel the running one
+			if( preferLatest && existing && !existing.ended ) {
+				existing.cancel()
+			} else if( !existing || existing.ended ) {
+				t = new Transaction(this, service.visitor, service.options)
+			} else if ( existing.pending ) {
+				t = existing
+			}
+
+			// scheduling the new or existing pending
+			// if required
+			if ( debounce > 0 ) {
+				if( this.timers.has(key)) {
+					let { id } = this.timers.get(key)
+					this.clearTimeout(id)
+				}
+				
+				let id = this.setTimeout(() => {
+					existing.run().catch(() => {})
+					this.timers.delete(key)
+				}, debounce)
+
+				this.timers.set(key, { id, at: Date.now(), ms: debounce })
+			} else {
+				// otherwise run the new one immediately
+				t.run().catch( () => {} )
+			}
 		}
 	}
 

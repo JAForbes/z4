@@ -80,7 +80,6 @@ export default class Transaction {
 				throw e
 			}
 		}
-		
 	}
 
 	invokeVisitor(visitor){

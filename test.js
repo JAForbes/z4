@@ -155,44 +155,6 @@ test('dependencies', t => {
     t.end()
 })
 
-// test('simple subscriptions', t => {
-//     let z = new Z()
-    
-//     let called = { user: 0, users: 0, friend: 0 }
-    
-//     z.on([z.state.users], () => called.users++)
-    
-//     let user = z.state.users
-//         .$values
-//         .$filter( (x,y) => x.id == y, [z.state.friend.id] )
-
-    
-//     z.on([user], function(){
-//         called.user++
-//     })
-//     t.equals(called.user, 0, 'Subscription not called.user when tree empty')
-    
-//     z.state.users = [{ id: 1 }, { id: 2 }, { id: 3 }]
-
-//     t.equals(called.user, 0, 'Subscription not called.user when tree empty pt 2')
-//     z.state.friend.id = 2
-//     z.on([z.state.friend.id], () => called.friend++)
-
-//     t.equals(called.user, 1, 'Subscription called.user once all deps are ready')
-
-//     z.state.friend.id = 2
-//     t.equals(called.user, 1, 'Setting a value to itself does not dispatch a notification')
-
-//     let copy = z.state.users()
-//     z.state.users = copy
-//     t.equals(called.user, 1, 'Setting a value to itself does not dispatch a notification pt2')
-    
-//     z.state.friend.id = 3
-//     t.equals(called.user, 2, 'Updating a dependency updates the notification')
-
-//     t.end()
-// })
-
 test('caching dynamics', t => {
     let z = new Z()
     let called = { user: 0 }
@@ -349,12 +311,74 @@ test('Transactions', async t => {
 
     z.state.b = 2
     
-    let c = z.service([z.state.b], function * (z2){
+    z.service([z.state.b], function * (z2){
         t.equals(z2.state.a(), 2, 'Before global state change')
         z.state.a(4)
         t.equals(z2.state.a(), 4, 'Global state change observable in tx')
     })
-    c.end()
+})
 
+test('simple subscriptions', t => {
+    let z = new Z()
+    
+    let called = { user: 0, users: 0, friend: 0 }
+    
+    z.service([z.state.users], function * (){ called.users++ })
+    
+    let user = z.state.users
+        .$values
+        .$filter( (x,y) => x.id == y, [z.state.friend.id] )
+
+    z.service([user], function(){
+        called.user++
+    })
+    t.equals(called.user, 0, 'Subscription not called.user when tree empty')
+    
+    z.state.users = [{ id: 1 }, { id: 2 }, { id: 3 }]
+
+    t.equals(called.user, 0, 'Subscription not called.user when tree empty pt 2')
+    z.state.friend.id = 2
+    z.service([z.state.friend.id], function * (){ called.friend++ })
+
+    t.equals(called.user, 1, 'Subscription called.user once all deps are ready')
+
+    z.state.friend.id = 2
+    t.equals(called.user, 1, 'Setting a value to itself does not dispatch a notification')
+
+    let copy = z.state.users()
+    z.state.users = copy
+    t.equals(called.user, 1, 'Setting a value to itself does not dispatch a notification pt2')
+    
+    z.state.friend.id = 3
+    t.equals(called.user, 2, 'Updating a dependency updates the notification')
+
+    t.end()
+})
+
+test('service cancellation', async t => {
+
+    let z = new Z()
+    
+    let forever = new Promise(function(){})
+    let immediate = Promise.resolve()
+    let promises = [forever, immediate]
+
+    let count = { finally: 0, try: 0, catch: 0 }
+    z.service([z.state.a], function * (){ 
+        try {
+            count.try++
+            yield promises.shift()
+        } catch (e) {
+            count.catch++
+        } finally {
+            count.finally++
+        }
+    }, { latest: true })
+
+    z.state.a = 1
+    await Promise.resolve()
+    z.state.a = 2
+
+    
     t.end()
 })
