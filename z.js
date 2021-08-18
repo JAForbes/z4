@@ -2,6 +2,20 @@ import Hyperscript from './h.js'
 import Component from './component.js'
 import * as Proxy from './proxy.js'
 import { Path } from './path.js'
+import Transaction from './transaction.js'
+
+class Service {
+	constructor(dependencies, visitor, options, key){
+		this.dependencies = dependencies
+		this.visitor = visitor
+		this.options = options
+		this.key = key
+	}
+
+	end(){
+
+	}
+}
 
 export default class Z4 extends Proxy.Lifecycle {
 	subscriptions = Object.create(null)
@@ -13,6 +27,8 @@ export default class Z4 extends Proxy.Lifecycle {
 	cachedValues = new Map()
 
 	proxyCache = Object.create(null)
+
+	transactions = new Map()
 
 	constructor(state={}){
 		super()
@@ -29,7 +45,53 @@ export default class Z4 extends Proxy.Lifecycle {
 		this.hyperscript = Hyperscript(this)
 	}
 
+	service(
+		dependencies=[]
+		, visitor=function * (){}
+		, options={ latest: true }
+		, key=`z.service([${dependencies.map( x => x.$path.key )}], ${visitor.toString()})`
+	){
+		if( !( key in this.subscriptions) ) {
+			let service = new Service(dependencies, visitor, options, key)
+			this.subscriptions[key] = service
+
+			// we only need to associate our explicit dependencies
+			// with this service
+			// then the notifcations function will figure out
+			// all the nodes that could be affected by a write
+			// and if any of those nodes have a subscription
+			// ours will execute.
+			for( let d of dependencies){
+				let key = d.$path.key
+				this.subscriptions[key] = this.subscriptions[key] || []
+				this.subscriptions[key].push(service)
+			}
+
+			let ready = dependencies.every( x => {
+				let y = x.valueOf()
+				
+				return !(typeof y == 'undefined')
+			} )
+
+			if( ready ) {
+				let t = new Transaction(this, visitor)
+				this.transactions.set(key, t)
+				t.run().catch( () => {} )
+			}
+		}
+		
+		return this.subscriptions[key]
+	}
+
+	/**
+	 * For a given query key, return a list of all
+	 * services that should be executed.
+	 * 
+	 */
 	notifications(key){
+
+		// 1. Get list of dependencies
+		// 2. Add to that list
 		if( key in this.cachedSubscriptions ) return this.cachedSubscriptions[key]
 		let subs = new Set()
 		let xs = [key, ...this.dependents[key]]
@@ -47,15 +109,22 @@ export default class Z4 extends Proxy.Lifecycle {
 		this.cachedSubscriptions[key] = subs
 		return subs
 	}
+	
+	clearValueCache(){
+		this.cachedValues.clear()
+		for( let t of this.transactions ) {
+			t.z.cachedValues.clear()
+		}
+	}
 
 	onset(handler, states){
-		this.cachedValues.clear()
+		this.clearValueCache()
 		
 		let key = handler.path.key
 		this.cachedValues.set(key, states)
 
-		for( let sub of this.notifications(key) ){
-			sub.visitor()
+		for( let service of this.notifications(key) ){
+			service.run()
 		}
 	}
 
@@ -84,7 +153,7 @@ export default class Z4 extends Proxy.Lifecycle {
 
 	onremove(){
 		this.cachedSubscriptions = {}
-		this.cachedValues.clear()
+		this.clearValueCache()
 	}
 	
 	oncreate({ proxy=new Proxy.Handler(), path=Path.of() }){
@@ -92,7 +161,7 @@ export default class Z4 extends Proxy.Lifecycle {
 		// cache.  We can optimize this later if benchmarks show
 		// this is even an issue.
 		this.cachedSubscriptions = {}
-		this.cachedValues.clear()
+		this.clearValueCache()
 
 		let key = path.key
 		this.proxies[ key ] = proxy
@@ -159,36 +228,6 @@ export default class Z4 extends Proxy.Lifecycle {
 	
 	get state(){
 		return this.root
-	}
-
-	on(dependencies, visitor){
-		let s = { visitor, dependencies }
-		
-		for( let d of dependencies){
-			let key = d.$path.key
-			this.subscriptions[key] = this.subscriptions[key] || []
-			this.subscriptions[key].push(s)
-		}
-
-		let ready = dependencies.every( x => {
-			let y = x.valueOf()
-			
-			return !(typeof y == 'undefined')
-		} )
-
-		if( ready ) {
-			visitor()
-		}
-	}
-
-	off(dependencies, visitor){
-		
-		for( let d of dependencies ){
-			let key = d.key
-			this.subscriptions[key] = this.subscriptions[key] || []
-			let i = this.subscriptions[key].findIndex( x => x.visitor == visitor )
-			i > -1 && this.subscriptions[key].splice(1, i)
-		}
 	}
 
 	get Component(){

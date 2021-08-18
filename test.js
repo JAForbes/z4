@@ -155,43 +155,43 @@ test('dependencies', t => {
     t.end()
 })
 
-test('simple subscriptions', t => {
-    let z = new Z()
+// test('simple subscriptions', t => {
+//     let z = new Z()
     
-    let called = { user: 0, users: 0, friend: 0 }
+//     let called = { user: 0, users: 0, friend: 0 }
     
-    z.on([z.state.users], () => called.users++)
+//     z.on([z.state.users], () => called.users++)
     
-    let user = z.state.users
-        .$values
-        .$filter( (x,y) => x.id == y, [z.state.friend.id] )
+//     let user = z.state.users
+//         .$values
+//         .$filter( (x,y) => x.id == y, [z.state.friend.id] )
 
     
-    z.on([user], function(){
-        called.user++
-    })
-    t.equals(called.user, 0, 'Subscription not called.user when tree empty')
+//     z.on([user], function(){
+//         called.user++
+//     })
+//     t.equals(called.user, 0, 'Subscription not called.user when tree empty')
     
-    z.state.users = [{ id: 1 }, { id: 2 }, { id: 3 }]
+//     z.state.users = [{ id: 1 }, { id: 2 }, { id: 3 }]
 
-    t.equals(called.user, 0, 'Subscription not called.user when tree empty pt 2')
-    z.state.friend.id = 2
-    z.on([z.state.friend.id], () => called.friend++)
+//     t.equals(called.user, 0, 'Subscription not called.user when tree empty pt 2')
+//     z.state.friend.id = 2
+//     z.on([z.state.friend.id], () => called.friend++)
 
-    t.equals(called.user, 1, 'Subscription called.user once all deps are ready')
+//     t.equals(called.user, 1, 'Subscription called.user once all deps are ready')
 
-    z.state.friend.id = 2
-    t.equals(called.user, 1, 'Setting a value to itself does not dispatch a notification')
+//     z.state.friend.id = 2
+//     t.equals(called.user, 1, 'Setting a value to itself does not dispatch a notification')
 
-    let copy = z.state.users()
-    z.state.users = copy
-    t.equals(called.user, 1, 'Setting a value to itself does not dispatch a notification pt2')
+//     let copy = z.state.users()
+//     z.state.users = copy
+//     t.equals(called.user, 1, 'Setting a value to itself does not dispatch a notification pt2')
     
-    z.state.friend.id = 3
-    t.equals(called.user, 2, 'Updating a dependency updates the notification')
+//     z.state.friend.id = 3
+//     t.equals(called.user, 2, 'Updating a dependency updates the notification')
 
-    t.end()
-})
+//     t.end()
+// })
 
 test('caching dynamics', t => {
     let z = new Z()
@@ -325,16 +325,36 @@ test('iterator support', t => {
     t.end()
 })
 
-test.only('deferrable subscriptions', async t => {
+test('Transactions', async t => {
     let z = new Z()
 
+    z.state.a = 1
     let a = new Transaction(z, function * example (z){
-        yield new Promise( Y => setTimeout(Y, 10 ))
-        yield new Promise( Y => setTimeout(Y, 10 ))
-        yield new Promise( Y => setTimeout(Y, 10 ))
+        z.state.a = 2
     })
 
     await a.run()
+
+    t.equals(z.state.a(), 2, 'Transaction committed changes to main tree')
+
+    let b = new Transaction(z, function * example (z){
+        z.state.a = 3
+        throw new TypeError('Whatever')
+    })
+
+    await b.run().catch(() => {})
+
+    t.equals(z.state.a(), 2, 'Transaction changes never committed on exception')
+    t.equals(b._state.constructor.name, 'Rollback', 'State is Rollback')
+
+    z.state.b = 2
+    
+    let c = z.service([z.state.b], function * (z2){
+        t.equals(z2.state.a(), 2, 'Before global state change')
+        z.state.a(4)
+        t.equals(z2.state.a(), 4, 'Global state change observable in tx')
+    })
+    c.end()
 
     t.end()
 })

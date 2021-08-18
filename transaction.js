@@ -3,7 +3,9 @@ import * as Proxy from './proxy.js'
 import Z4 from './z.js'
 
 class Mutation {
-	handler = new Handler(new Path, new Lifecycle(), () => [], new Map())
+	handler = new Proxy.Handler(
+		Path.Path.of(), new Proxy.Lifecycle(), () => [], new Map()
+	)
 	states = []
 	constructor(handler, states){
 		this.handler = handler
@@ -18,7 +20,7 @@ class Mutation {
 	static Remove = class Delete extends Mutation {}
 }
 
-export default class Transaction extends Z4 {
+export default class Transaction {
 
 	static state = class State {
 		static Pending = class Pending extends State {}
@@ -30,25 +32,37 @@ export default class Transaction extends Z4 {
 	}
 
 	constructor(zz=new Z4(), visitor=async function(){}){
-		super()
 
+		this.z = new Z4(zz.state.$$all().map( x => Object.create(x) )[0])
 
 		this.parent = zz
 		this.path = Path.Path.of()
 		this._state = new Transaction.state.Pending()
 		this.visitor = visitor
-
-		this.states = zz.state.$$all().map( x => Object.create(x) )
-
-		this.root = Proxy.PathProxy.of(
-			this.path
-			, this
-			, () => this.states
-			, this.proxyCache
-		)
-
 		this.mutations = new Map()
 		this._state = new Transaction.state.Pending()
+
+		let mutations = this.mutations
+
+		Object.assign(this.z, {
+			onset(handler, states, visitor){
+				this.cachedValues.clear()
+				
+				let key = handler.path.key
+				this.cachedValues.set(key, states)
+		
+				mutations.set(key, new Mutation.Set(handler, states, visitor))
+			},
+		
+			onremove(handler){
+				this.cachedSubscriptions = {}
+				this.cachedValues.clear()
+				let key = handler.path.key
+				
+				mutations.set(key, new Mutation.Remove(handler))
+			}
+	
+		})
 	}
 
 	async run(){
@@ -56,19 +70,18 @@ export default class Transaction extends Z4 {
 			try {
 				this._state = new Transaction.state.Running()
 
-				await this.invokeVisitor( () => this.visitor(this.root) )
+				await this.invokeVisitor( () => this.visitor(this.z) )
 
 				this._state = new Transaction.state.Replaying()
 				await this.replayMutations()
 				this._state = new Transaction.state.Committed()
 			} catch (e) {
-				this._state = new Transaction.state.Aborted(e)
+				this._state = new Transaction.state.Rollback(e)
 				throw e
 			}
 		}
 		
 	}
-
 
 	invokeVisitor(visitor){
 		let it = visitor()
@@ -77,38 +90,19 @@ export default class Transaction extends Z4 {
 		this.iterator = it
 
 		async function interpret(any){
-	
-			try {
-				if ( any.value instanceof Promise ) {
-					return any.value
-						.then( x => interpret(it.next(x)), e => interpret(it.throw(e)) )
-				} else if ( !any.done ) {
-					return interpret(it.next(any.value))
-				}
-			} catch (e) {
-				console.error(e)
+			if ( any.value instanceof Promise ) {
+				return any.value
+					.then( x => interpret(it.next(x)), e => {
+						throw interpret(it.throw(e))
+					})
+			} else if ( !any.done ) {
+				return interpret(it.next(any.value))
+			} else {
+				return null;
 			}
 		}
 
-	
 		return interpret(it.next())
-	}
-
-	onset(handler, states, visitor){
-		this.cachedValues.clear()
-		
-		let key = handler.path.key
-		this.cachedValues.set(key, states)
-
-		this.mutations.set(key, new Mutation.Set(handler, states, visitor))
-	}
-
-	onremove(handler){
-		this.cachedSubscriptions = {}
-		this.cachedValues.clear()
-		let key = handler.path.key
-		
-		this.mutations.set(key, new Mutation.Remove(handler))
 	}
 
 	/**
@@ -124,10 +118,10 @@ export default class Transaction extends Z4 {
 	async replayMutations(){
 		let states = this.parent.state.$$all() 
 		let notifications = []
-		for( let mutation of Object.values(this.mutations) ) {
+		for( let mutation of this.mutations.values() ) {
 			
 			if( mutation instanceof Mutation.Set ) {
-				let response = mutation.path.set({ 
+				let response = mutation.handler.path.set({ 
 					visitor: mutation.visitor, states
 				})
 
@@ -137,7 +131,7 @@ export default class Transaction extends Z4 {
 				notifications.push({ mutation, states: response.states })
 		
 			} else if ( mutation instanceof Mutation.Remove ) {
-				let worked = mutation.path.remove({ 
+				let worked = mutation.handler.path.remove({ 
 					states
 				})
 

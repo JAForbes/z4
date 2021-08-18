@@ -1,3 +1,12 @@
+
+transactions should need keys, just like queries
+
+---
+
+When writing to the main tree, caches in all transactions should be reset.
+
+---
+
 Generators are essential for MVCC because it allows Z to call it.throw()/it.return() no matter what is happening.
 
 E.g. if committing a transaction causes the dispatch of another transaction of the same ilk, based on the options given by the user the existing transaction could be aborted in favor of the new one, the new transaction could be cancelled, the new transaction could delay execution until the current transaction exits cleanly.  

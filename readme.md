@@ -67,6 +67,16 @@ This allows you to define user interfaces in terms of route state.  If the id in
 This means transitioning between different routes requires no special code to reset the state, or initialize the state.  Instead we define that code as a simple response to a set of relationships.
 
 
+Documentation
+-------------
+
+- [Guide](./guide.md)
+- [API](./api.md)
+
+- [Best Practices](./best-practices.md)
+- [Middleware](./middleware.md)
+- [Terminology](./terminology.md)
+
 Services
 --------
 
@@ -88,7 +98,7 @@ Any writes you perform for the duration of a service do not actually get applied
 
 
 ```js
-z([z.state.a.b.c], function * effect(z){
+z.service([z.state.a.b.c], function * effect(z){
 
     // Run a network request
     // the service pauses while
@@ -100,7 +110,7 @@ z([z.state.a.b.c], function * effect(z){
         , body: JSON.stringify(this.a.b.c()) 
         }
     )
-    .then( x => x.json() )
+    response = yield response.json()
 
     // We can write back to the tree
     // but out side of this service
@@ -111,12 +121,14 @@ z([z.state.a.b.c], function * effect(z){
 })
 ```
 
-We use instead of async/await is because generator execution can be cancelled externally.  This allows Z4 and the user to configure what should happen when the same transaction is initiated twice via two different events concurrently.
+We use generators instead of async/await because generator execution can be cancelled externally.  This allows Z4 and the user to configure what should happen when the same transaction is initiated twice via two different events concurrently.
 
 The default behavior would be to abort the existing transaction and start the new one, but there are other desired behaviors such as allowing the existing transaction to complete and throttling new instantiations of the same service by a desired threshold.  It depends if you want the latest value, any value, or all values.
 
+But Z4 will not allow two transactions belonging to the same service to run at the same time.
+
 ```js
-z([z.state.a.b.c], function * (z){
+z.service([z.state.a.b.c], function * (z){
 
     z.state.loading = true
 
