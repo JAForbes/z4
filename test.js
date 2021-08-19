@@ -355,7 +355,7 @@ test('simple subscriptions', t => {
     t.end()
 })
 
-test('service cancellation', async t => {
+test('service cancellation (latest)', async t => {
 
     let z = new Z()
     
@@ -377,7 +377,7 @@ test('service cancellation', async t => {
         } finally {
             count.finally++
         }
-    }, { latest: true })
+    }, { preferLatest: true })
 
     z.state.a = 1
     await Promise.resolve()
@@ -394,6 +394,52 @@ test('service cancellation', async t => {
     t.equals(count.completed, 1, 'Second service completed')
     t.equals(firstLength, undefined, 'Cancelled write never merged upstream')
     t.equals(secondLength, 1, 'Clean exit commit changes to tree')
+
+    t.end()
+})
+
+test('service cancellation (earliest)', async t => {
+
+    let z = new Z()
+    
+    let carryOn;
+    let paused = new Promise(function(Y){ carryOn = Y })
+
+    let count = { finally: 0, try: 0, catch: 0, completed: 0 }
+    let err;
+
+    z.service([z.state.a], function * (z){ 
+        try {
+            count.try++
+            z.state.b = 'hello'
+            yield paused
+            count.completed++
+        } catch (e) {
+            count.catch++
+            err = e
+        } finally {
+            count.finally++
+        }
+    }, { preferLatest: false })
+
+    z.state.a = 1
+    await Promise.resolve()
+    z.state.a = 2
+    await Promise.resolve()
+    
+    let beforeCommit = z.state.b()
+    carryOn(true)
+    await z.drain()
+    await paused
+
+    t.equal(count.finally, 1, 'Finally only called for service that started')
+    t.equals(count.try, 1, 'Subsequent services ignored')
+    t.equals(count.catch, 0, 'Second was ignored (1/2)')
+    t.equals(err, undefined, 'No cancellation error occurred')
+    t.equals(count.completed, 1, 'First service completed')
+    
+    t.equals(beforeCommit, undefined, 'Before commit, b is unset')
+    t.equals(z.state.b(), "hello", 'Clean exit commit changes to tree')
 
     t.end()
 })

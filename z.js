@@ -150,29 +150,34 @@ export default class Z4 extends Proxy.Lifecycle {
 			} else if( !existing || existing.ended ) {
 				t = new Transaction(this, service.visitor, service.options)
 				this.transactions.set(key, t)
-			} else if ( existing.pending ) {
+			} else {
 				t = existing
 			}
 
-			// scheduling the new or existing pending
-			// if required
-			if ( debounce > 0 ) {
-				if( this.timers.has(key)) {
-					let { id } = this.timers.get(key)
-					this.clearTimeout(id)
-				}
-				
-				let id = this.setTimeout(() => {
-					existing.run().catch(() => {})
-					this.timers.delete(key)
-				}, debounce)
 
-				this.timers.set(key, { id, at: Date.now(), ms: debounce })
-			} else {
-				// otherwise run the new one immediately
-				t.run().catch( () => {} )
-				
+			if( t.pending ) {
+				// scheduling the new or existing pending
+				// if required
+				if ( debounce > 0 ) {
+					if( this.timers.has(key)) {
+						let { id } = this.timers.get(key)
+						this.clearTimeout(id)
+					}
+					
+					let id = this.setTimeout(() => {
+						existing.run().catch(() => {})
+						this.timers.delete(key)
+					}, debounce)
+	
+					this.timers.set(key, { id, at: Date.now(), ms: debounce })
+				} else {
+					// otherwise run the new one immediately
+					t.run().catch( () => {} )
+				}
 			}
+			// could just already have started 
+			// with preferLatest=false
+			
 		}
 	}
 
