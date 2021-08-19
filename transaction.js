@@ -67,7 +67,7 @@ export default class Transaction {
 		})
 	}
 
-	async run(){
+	async _run(){
 		if ( this._state instanceof Transaction.state.Pending ) {
 			try {
 				this._state = new Transaction.state.Running()
@@ -79,8 +79,14 @@ export default class Transaction {
 				this._state = new Transaction.state.Committed()
 			} catch (e) {
 				this._state = new Transaction.state.Rollback(e)
-				throw e
+				// throw e
 			}
+		}
+	}
+
+	async run(){
+		if ( this._state instanceof Transaction.state.Pending ) {
+			this.promise = this._run()
 		}
 	}
 
@@ -109,7 +115,9 @@ export default class Transaction {
 
 	cancel(){
 		if( this._state instanceof Transaction.state.Running ) {
-			this.iterator.throw( new CancellationError() )
+			try {
+				this.iterator.throw( new CancellationError() )
+			} catch(e) {}
 		}
 	}
 
@@ -123,6 +131,12 @@ export default class Transaction {
 	get pending(){
 		return (
 			this._state instanceof Transaction.state.Pending
+		)
+	}
+
+	get running(){
+		return (
+			this._state instanceof Transaction.state.Running
 		)
 	}
 
@@ -178,7 +192,7 @@ export default class Transaction {
 			// this is where a new transaction should
 			// be created and injected
 			let t = new Transaction(this.parent, ctx => sub.visitor(ctx))
-			await t.run()
+			await t.run().catch( () => {})
 		}
 
 	}

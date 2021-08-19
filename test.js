@@ -329,7 +329,7 @@ test('simple subscriptions', t => {
         .$values
         .$filter( (x,y) => x.id == y, [z.state.friend.id] )
 
-    z.service([user], function(){
+    z.service([user], function * (){
         called.user++
     })
     t.equals(called.user, 0, 'Subscription not called.user when tree empty')
@@ -384,8 +384,7 @@ test('service cancellation', async t => {
     let firstLength = z.state.promisesLength()
     z.state.a = 2
 
-    // await z.drain()
-    await new Promise( Y => setTimeout(Y, 50))
+    await z.drain()
     let secondLength = z.state.promisesLength()
 
     t.equal(count.finally, 2, 'Finally always called')

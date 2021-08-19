@@ -176,6 +176,19 @@ export default class Z4 extends Proxy.Lifecycle {
 		}
 	}
 
+	/**
+	 * Returns a promise that resolves the moment
+	 * all transactions that were
+	 * 
+	 */
+	drain(){
+		return Promise.all(
+			Array.from(this.transactions.values())
+				.filter( x => x.running ).map( x => x.promise )
+		)
+		.then( () => null, () => null )
+	}
+
 	onbeforeset(handler, visitor){
 		let key = handler.path.key
 
