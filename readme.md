@@ -1,6 +1,12 @@
+<h1 align="center">Z4</h1>
+
 <p align="center">
     <img style="background-color: white" width="300" align="center" src="z4.svg" />
 </p>
+
+What is it?
+-----------
+
 
 > 🚨 This is the 4th rewrite of a library I am already using in production.  The previous iteration was immutable and highly optimized but was also very complicated.  This is an attempt to write Z with fresh eyes with everything I've learned in the past 3 iterations.  The goal is to beat the performance of Z3 but have a simple/obvious code base that doesn't require a ton of effort to understand what is going on.
 >
@@ -8,8 +14,6 @@
 >
 > To see the current state of the project checkout https://github.com/JAForbes/z4/projects/1
 
-What is it?
------------
 
 Z4 is the next generation of functional UI reactive state.  It takes lessons from streams, lenses and atoms but is ultimately something new.
 
