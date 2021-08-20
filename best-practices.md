@@ -139,9 +139,9 @@ state.count( state.count() + 1 )
 
 #### Pass queries around, not raw state
 
-Z queries can never be stale.  If an id changes and an object should now be `undefined`, Z will know, but your view may not.  Even if you want access to the value before it became undefined, you should use `.$optimistic` to access a query that prefers recent uncommitted writes as long as they do not result in undefined values.
+Z queries can never be stale.  If an id changes Z will refer to the correct object, always.  By escaping out of Z and passing around raw objects, you may accidentally read or modify the wrong object.  You may find the object you are accessing no longer exists!
 
-You may be in a view looping through some data and you've left query space.  Instead of passing down the raw data, create a fresh query using a join and pass that in instead.
+You may be in a view looping through some data and you've escaped out of a query.  Instead of passing down the raw data, create a fresh query using a join and pass that in instead.
 
 
 ```js
@@ -185,8 +185,22 @@ let task =
         .$values
         .$filter( 
             (task, ids) => ids.includes(task.id) 
+            , [z.state.selected]
         )
 
 // edit 3 tasks at once
 task.due_date = new Date()
+
+// delete 3 tasks at once
+task.$delete()
+
+// get all selected tasks
+let xs = [...task]
 ```
+
+## Pass z.state to components not the main z instance
+
+Z is designed to allow subcomponents to have a complete state tree they can read/write to without having the ability to excess other parts of the tree.  By only passing `z.state` to subcomponents, you can easily later refactor this reference to be a different query reference, e.g. `z.state.sandbox`.  Now all their reads and writes are sandboxed in a different sub object, but that subcomponent does not need to change any code as it was always just receiving a query, not a z instance.
+
+It is also not recommended to allow all components to bind services.  Try to keep service definitions to route level components and have sub components simply modify state.  This makes it a lot easier to track down side effects and alter behavior without massive changes.  By only passing z.state around, these subcomponents will not be able to create services.
+

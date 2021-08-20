@@ -82,13 +82,19 @@ Creates a read only query that transforms state using the user provided visitor 
 
 ### `options`
 
-#### `options.preferLatest` `(true)` 
+#### `options.resolve`
 
-Whether to cancel the new or previous transaction when a service is triggered
+In Z4, there can only be 1 transaction per service running at a time.  This means if a query dependency emits a new value while an existing service is already running Z4 needs to resolve that conflict by either, debouncing new invocations, cancelling the existing transaction, or ignoring all new transactions until the current one exits cleanly.
 
-#### `options.debounce` `(0)` 
+By default Z4 cancels existing transactions and starts a new transaction.
 
-The number of milliseconds to wait before commencing a new transaction when a new value is received if a transaction is already running.
+
+```js
+    resolve: 'latest'
+    resolve: 'earliest' 
+    resolve: { debounce: 50 }
+}
+```
 
 ### ServiceInstance
 
