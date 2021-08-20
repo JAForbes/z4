@@ -1,16 +1,72 @@
 # Best Practices
 
+
+#### Avoid point free code when using visitor functions in queries
+
+Every query in Z4 has a key.  The key is used to determine identity.  It is important therefore to ensure that no two visitor functions accessing the same dependencies have the same toString as these two queries will be treated as one query.  Because Z4 caches the result of read and write query operations, you could see strange behaviour.
+
+An example would be using a Ramda function in a query.  Because all Ramda functions are wrapped in `R.curry`, all Ramda functions will share the same `Function::toString`.
+
+You can provide a manual `key` as a 3rd argument in all cases a visitor function is accepted.  But it is probably simply clearer to invoke the given function via an arrow function.
+
+A key collision is unlikely, because the entire query path and its dependencies are included in the key.  But the key also acts as a user facing description of the query, it is helpful for diagnostics / debugging and should be human readable.  So even though there are ways around it, it is best to avoid point free code when using Z queries.
+
+Note if the `Function::toString` has been altered, e.g. as with sanctuary-js, this is no longer an issue.
+
+```js
+// avoid
+z.state.users.$map( R.indexBy(R.prop('id')) )
+// .$path.key
+// users.$map(function curry(){...}))
+
+// prefer
+z.state.users.$map( xs => R.indexBy(R.prop('id'), xs) )
+
+// or prefer
+z.state.users.$map( xs => R.indexBy(x => x.id, xs) )
+
+// or prefer
+z.state.users.$map( R.indexBy(R.prop('id')), [], 'userIdx' )
+```
+
+#### Never access closured queries in a query visitor function
+
+JS closures are fantastic, but Z4 by design avoids implicit dependencies.  If you access a Z4 query from within a visitor function that is not explicitly in the dependency list you may be surprised that your query does not update when the implicit dependency's value changes.
+
+It is ok to access closured variables that are not reactive and considered static for the lifetime of the query, but Z4 works best when you store all state on the state tree and reference dependencies explicitly by passing dependencies into the dependency list.
+
+```js
+// avoid
+// will only update wher users list changes
+// not when route id changes
+let user = 
+    z.state
+        .users
+        .$values
+        .$filter( x => x.id == z.state.route.id() )
+
+// prefer
+// will update when users list and route.id updates
+let user =
+    z.state
+        .users
+        .$values
+        .$filter( (x,y) => x.id == y, [z.state.route.id()] )
+```
+
 #### Keep state shallow
 
-Z is modelled a lot more like a database with tables and table joins than other UI state management systems.  Because you can create joins there is less of a need to nest data for convenience.  We can just create a query that simulates a nest by joining on the particular id(s).
+Z is modelled a lot more like a database with tables and table joins than other UI state management systems.  It is a relational state management library.  Because you can easily create joins there is less of a need to nest data for convenience.  We can just create a query that simulates a nest by joining on the particular id(s).
 
-A shallow state tree makes queries easy to write, it is also arguably easier to debug because state isn't super nested.
+A shallow state tree makes queries easy to write and consume.  Shallow state also makes it far easier for Z4 to optimize caching and execution of queries.
 
-Semi-ironically given the gradual demise of rest, Z works really well with distinct resources that are joined client side.  It was designed to work well with HashQL but also makes a lot of sense in a RESTful contenxt.  Additionally because Z is reactive, it is easy to fetch additional data when required (e.g. when an id changes causes a join to become empty).
+In browser apps we are used to nesting JS objects to provide easy to related data.  But queries solve this problem in a different way and with greater flexibility as the same data can easily by referenced by completely separate queries.
 
 Finally, Z has to do less work the less the data is nested.  Everytime you dive through state with multiple dot chains, Z has to traverse the state tree through lazy state references, and verify parent fields are not undefined and are ready for read/write.
 
 That isn't to say you can't nest your data, you can, and if the situation calls for it, no problem.  But if there was a grain to work with it would be flat data normalized via unique ids.
+
+> 🤓 Why do shallow trees lead to better performance?  Because Z4 can easily know that two distinct parts of the tree are not represented by a particular query that changed.  The moment there is a single dynamic query that is a parent of a leaf node that was written to in the tree, Z4 will have to assume that visitor function could have referenced in child value.
 
 #### Cache proxy references
 
@@ -83,9 +139,9 @@ state.count( state.count() + 1 )
 
 #### Pass queries around, not raw state
 
-Z queries can never be stale.  If an id changes and an object should now be `undefined`, Z will know, but your view may not.  Even if you want access to the value before it became undefined, you should use `.$optimistic` to access a query that prefers recent uncommitted writes as long as they do not result in undefined values.
+Z queries can never be stale.  If an id changes Z will refer to the correct object, always.  By escaping out of Z and passing around raw objects, you may accidentally read or modify the wrong object.  You may find the object you are accessing no longer exists!
 
-You may be in a view looping through some data and you've left query space.  Instead of passing down the raw data, create a fresh query using a join and pass that in instead.
+You may be in a view looping through some data and you've escaped out of a query.  Instead of passing down the raw data, create a fresh query using a join and pass that in instead.
 
 
 ```js
@@ -129,8 +185,22 @@ let task =
         .$values
         .$filter( 
             (task, ids) => ids.includes(task.id) 
+            , [z.state.selected]
         )
 
 // edit 3 tasks at once
 task.due_date = new Date()
+
+// delete 3 tasks at once
+task.$delete()
+
+// get all selected tasks
+let xs = [...task]
 ```
+
+## Pass z.state to components not the main z instance
+
+Z is designed to allow subcomponents to have a complete state tree they can read/write to without having the ability to excess other parts of the tree.  By only passing `z.state` to subcomponents, you can easily later refactor this reference to be a different query reference, e.g. `z.state.sandbox`.  Now all their reads and writes are sandboxed in a different sub object, but that subcomponent does not need to change any code as it was always just receiving a query, not a z instance.
+
+It is also not recommended to allow all components to bind services.  Try to keep service definitions to route level components and have sub components simply modify state.  This makes it a lot easier to track down side effects and alter behavior without massive changes.  By only passing z.state around, these subcomponents will not be able to create services.
+

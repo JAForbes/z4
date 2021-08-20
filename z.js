@@ -1,7 +1,28 @@
+/* globals clearTimeout, setTimeout */
 import Hyperscript from './h.js'
 import Component from './component.js'
 import * as Proxy from './proxy.js'
 import { Path } from './path.js'
+import Transaction from './transaction.js'
+
+class Service {
+	constructor(
+		dependencies
+		, visitor
+		, options={ resolve: 'latest' }
+		, key
+	) {
+		this.dependencies = dependencies
+		this.visitor = visitor
+		this.options = options
+		this.key = key
+		this.cancellations = new Set()
+	}
+
+	end(){
+
+	}
+}
 
 export default class Z4 extends Proxy.Lifecycle {
 	subscriptions = Object.create(null)
@@ -13,6 +34,13 @@ export default class Z4 extends Proxy.Lifecycle {
 	cachedValues = new Map()
 
 	proxyCache = Object.create(null)
+
+	transactions = new Map()
+	services = new Map()
+
+	setTimeout = setTimeout
+	clearTimeout = clearTimeout
+	timers = new Map()
 
 	constructor(state={}){
 		super()
@@ -29,7 +57,53 @@ export default class Z4 extends Proxy.Lifecycle {
 		this.hyperscript = Hyperscript(this)
 	}
 
-	notify(key){
+	service(
+		dependencies=[]
+		, visitor=function * (){}
+		, options={ resolve: 'latest' }
+		, key=`z.service([${dependencies.map( x => x.$path.key )}], ${visitor.toString()})`
+	){
+		if( ! this.services.has(key) ) {
+			let service = new Service(dependencies, visitor, options, key)
+			this.services.set(key, service)
+
+			// we only need to associate our explicit dependencies
+			// with this service
+			// then the notifcations function will figure out
+			// all the nodes that could be affected by a write
+			// and if any of those nodes have a subscription
+			// ours will execute.
+			for( let d of dependencies){
+				let key = d.$path.key
+				this.subscriptions[key] = this.subscriptions[key] || []
+				this.subscriptions[key].push(service)
+			}
+
+			let ready = dependencies.every( x => {
+				let y = x.valueOf()
+				
+				return !(typeof y == 'undefined')
+			} )
+
+			if( ready ) {
+				let t = new Transaction(this, visitor)
+				this.transactions.set(key, t)
+				t.run().catch( () => {} )
+			}
+		}
+		
+		return this.services.get(key)
+	}
+
+	/**
+	 * For a given query key, return a list of all
+	 * services that should be executed.
+	 * 
+	 */
+	notifications(key){
+
+		// 1. Get list of dependencies
+		// 2. Add to that list
 		if( key in this.cachedSubscriptions ) return this.cachedSubscriptions[key]
 		let subs = new Set()
 		let xs = [key, ...this.dependents[key]]
@@ -47,16 +121,88 @@ export default class Z4 extends Proxy.Lifecycle {
 		this.cachedSubscriptions[key] = subs
 		return subs
 	}
+	
+	clearValueCache(){
+		this.cachedValues.clear()
+		for( let t of this.transactions.values() ) {
+			t.z.cachedValues.clear()
+		}
+	}
 
 	onset(handler, states){
-		this.cachedValues.clear()
+		this.clearValueCache()
 		
 		let key = handler.path.key
 		this.cachedValues.set(key, states)
 
-		for( let sub of this.notify(key) ){
-			sub.visitor()
+		for( let service of this.notifications(key) ){
+			let t;
+			let key = service.key
+			let existing = this.transactions.get(key)
+			let { resolve } = service.options
+
+			let preferLatest = resolve != 'earliest'
+			let debounce = resolve.debounce || 0
+
+			// whether or not to create a new transaction
+			// and if we should cancel the running one
+			if( preferLatest && existing && !existing.ended ) {
+				service.cancellations.add(existing)
+				t = new Transaction(this, service.visitor, service.options)
+				this.transactions.set(key, t)
+			} else if( !existing || existing.ended ) {
+				t = new Transaction(this, service.visitor, service.options)
+				this.transactions.set(key, t)
+			} else {
+				t = existing
+			}
+
+
+			if( t.pending ) {
+				// scheduling the new or existing pending
+				// if required
+				if ( existing && debounce > 0 ) {
+					if( this.timers.has(key)) {
+						let { id } = this.timers.get(key)
+						this.clearTimeout(id)
+					}
+					
+					let id = this.setTimeout(() => {
+						for( let existing of service.cancellations ) {
+							existing.cancel()
+						}
+						service.cancellations.clear()
+						t.run().catch(() => {})
+						this.timers.delete(key)
+					}, debounce)
+	
+					this.timers.set(key, { id, at: Date.now(), ms: debounce })
+				} else {
+					if( existing ) {
+						existing.cancel()
+						service.cancellations.clear()
+					}
+					// otherwise run the new one immediately
+					t.run().catch( () => {} )
+				}
+			}
+			// could just already have started 
+			// with preferLatest=false
+			
 		}
+	}
+
+	/**
+	 * Returns a promise that resolves the moment
+	 * all transactions that were
+	 * 
+	 */
+	drain(){
+		return Promise.all(
+			Array.from(this.transactions.values())
+				.filter( x => x.running ).map( x => x.promise )
+		)
+		.then( () => null, () => null )
 	}
 
 	onbeforeset(handler, visitor){
@@ -84,7 +230,7 @@ export default class Z4 extends Proxy.Lifecycle {
 
 	onremove(){
 		this.cachedSubscriptions = {}
-		this.cachedValues.clear()
+		this.clearValueCache()
 	}
 	
 	oncreate({ proxy=new Proxy.Handler(), path=Path.of() }){
@@ -92,7 +238,7 @@ export default class Z4 extends Proxy.Lifecycle {
 		// cache.  We can optimize this later if benchmarks show
 		// this is even an issue.
 		this.cachedSubscriptions = {}
-		this.cachedValues.clear()
+		this.clearValueCache()
 
 		let key = path.key
 		this.proxies[ key ] = proxy
@@ -159,36 +305,6 @@ export default class Z4 extends Proxy.Lifecycle {
 	
 	get state(){
 		return this.root
-	}
-
-	on(dependencies, visitor){
-		let s = { visitor, dependencies }
-		
-		for( let d of dependencies){
-			let key = d.$path.key
-			this.subscriptions[key] = this.subscriptions[key] || []
-			this.subscriptions[key].push(s)
-		}
-
-		let ready = dependencies.every( x => {
-			let y = x.valueOf()
-			
-			return !(typeof y == 'undefined')
-		} )
-
-		if( ready ) {
-			visitor()
-		}
-	}
-
-	off(dependencies, visitor){
-		
-		for( let d of dependencies ){
-			let key = d.key
-			this.subscriptions[key] = this.subscriptions[key] || []
-			let i = this.subscriptions[key].findIndex( x => x.visitor == visitor )
-			i > -1 && this.subscriptions[key].splice(1, i)
-		}
 	}
 
 	get Component(){

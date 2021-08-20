@@ -66,80 +66,16 @@ This allows you to define user interfaces in terms of route state.  If the id in
 
 This means transitioning between different routes requires no special code to reset the state, or initialize the state.  Instead we define that code as a simple response to a set of relationships.
 
-In the following example we define that the `sshKey` is a join on the `sshKey.id` and the `route.value.id` and that the current `section` of the url must be `ssh-keys`.
 
-We define this before any ssh key data has been set.  The moment the data changes, the other queries respond.  And those query dependencies, and their dynamic relationships are all read/write and subscribable.
+Documentation
+-------------
 
+- [Guide](./guide.md)
+- [API](./api.md)
 
-```js
-z.state.route = parseURL('/settings/security/ssh-keys/4')
-
-z.state.route()
-// { tag: 'Settings', value: { page: 'security', section: 'ssh-keys', id: 4 } }
-
-let section = z.state.route.value.section
-let page = z.state.route.value.page
-let id = z.state.route.value.id
-
-let sshKey = 
-    z.state.sshKeys
-        .$filter(([section]) => section == 'ssh-keys' )
-        .$filter([id, section], x => id() == x.id )
-
-let name = sshKey.name
-let value = sshKey.value
-
-
-z.state.sshKeys([
-    { id:1, name: 'Home' },
-    { id:2, name: 'Work' },
-    { id:3, name: 'Laptop' },
-    { id:4, name: 'Raspberry Pi' }
-])
-
-
-name() // 'Raspberry Pi'
-
-id(2)
-
-name() // 'Work'
-
-name('Office')
-
-sshKey() // { id: 2, name: 'Office' }
-
-z.state.sshKeys()
-// [
-//     { id:1, name: 'Home' },
-//     { id:2, name: 'Office' },
-//     { id:3, name: 'Laptop' },
-//     { id:4, name: 'Raspberry Pi' }
-// ]
-
-section('personal-access-token')
-
-name() 
-// undefined
-
-name('Work')
-// no-op
-
-name()
-// undefined
-
-// Our predicate is no longer satisfied
-// We get back no results, but we can
-// use .$optimistic to return the last
-// value before the result set was empty
-// or to return the latest value even
-// before it is committed
-
-state = z.state.$optimistic
-state.name() // 'Work'
-```
-
-
-Notes:
+- [Best Practices](./best-practices.md)
+- [Middleware](./middleware.md)
+- [Terminology](./terminology.md)
 
 Services
 --------
@@ -160,14 +96,9 @@ Any writes you perform for the duration of a service do not actually get applied
 
 > 💡 If you want the view to see writes before they are committed you can use `.$optimistic` on any query.
 
-You can pass an options object to a side effect to change the service behaviour:
-
-- `throttle` will run the service at most the specified amount of milliseconds
-- `debounce` will delay running the service by the specified amount of milliseconds every time the value changes
-- `cancel` will cancel resuming the effect if one of the subscription inputs updates while the effect is running (`finally` blocks will still run)
 
 ```js
-z([z.state.a.b.c], function * effect(){
+z.service([z.state.a.b.c], function * effect(z){
 
     // Run a network request
     // the service pauses while
@@ -179,29 +110,47 @@ z([z.state.a.b.c], function * effect(){
         , body: JSON.stringify(this.a.b.c()) 
         }
     )
-    .then( x => x.json() )
+    response = yield response.json()
 
     // We can write back to the tree
     // but out side of this service
     // state.data will still be the
     // old value
-    this.data = response
+    z.data = response
 
-    // we can still write to the global state
-    // by using `z.state` instead of
-    // this
-
-}, { throttle: 500, cancel: false })
+})
 ```
 
-If you do not like `this`, you can also use the query instance that is passed in as the only argument to the query context:
+We use generators instead of async/await because generator execution can be cancelled externally.  This allows Z4 and the user to configure what should happen when the same transaction is initiated twice via two different events concurrently.
+
+The default behavior would be to abort the existing transaction and start the new one, but there are other desired behaviors such as allowing the existing transaction to complete and throttling new instantiations of the same service by a desired threshold.  It depends if you want the latest value, any value, or all values.
+
+But Z4 will not allow two transactions belonging to the same service to run at the same time.
 
 ```js
-z([z.state.a.b.c], function * (state){
+z.service([z.state.a.b.c], function * (z){
 
-  // equivalent
-  state.data = 'hello'
-  this.data = 'hello'
+    z.state.loading = true
+
+    // Run a network request
+    // if it throws, any state changes within
+    // this transaction will be automatically
+    // rolled back
+    let response = yield z.fetch(
+        '/api/data'
+        , 
+        { method: 'POST'
+        , body: JSON.stringify(z.state.a.b.c()) 
+        }
+    )
+
+    response = yield response.json()
+
+    // We can write back to the tree
+    // but outside of this service
+    // state.data will still be the
+    // old value
+    z.state.data = response
 
 })
 ```
@@ -209,51 +158,9 @@ z([z.state.a.b.c], function * (state){
 Few things to note from this sample.  
 
 - Setting a query value to what it already is, is a no-op.  So there is no need to check that the existing value does not already equal the value you are setting it to.
-- `z.fetch` is just `fetch` but will automatically cancel network requests when a service is cancelled and can be replaced with alternative implementations for testing or for supporting older environments.  You can use native fetch if you want, or any other promise returning function, but you will need to handle cancellation yourself.
+- `z.fetch` is like `fetch` but will automatically cancel network requests when a service is cancelled and can be replaced with alternative implementations for testing or for supporting older environments.  Additionally it doesn't execute when you invoke it, but when it is yielded.  It also does not return a promise so `.then` chaining will not work.  You can use native fetch if you want, or any other promise returning function, but you will need to handle cancellation yourself.
+- You can easily add your own effects to Z's transaction interpreter.  Simply yield a value that your own middleware can handle.  See [middleware](./middleware.md)
 
-- No arguments are passed to the side effect generator except a draft state query.
-
-This side effect will run when values change, or after side effects are resolved, but to access the current value of the query, you still access it from the state tree itself.
-
-This ensures the value you have is always the latest value.  It is not recommended to destructure the state as it is easy to forget that after a yield the value may be stale.  A qualified access will never be stale.
-
-This doesn't mean you need to fully qualify access, this is completely fine for example:
-
-```js
-z([state.a.b.c], function * effect(){
-    let { c } = state.a.b
-
-    c()
-    yield
-    c(c() + 2)
-    yield
-    c()
-
-})
-```
-
-Whereas this is not:
-
-
-```js
-z([state.a.b.c], function * effect(){
-    let c = state.a.b.c()
-
-    c // not stale yet
-    yield
-    let next = c + 1 // c is potentially stale
-    state.a.b.c(next) 
-    yield
-    c // c is stale
-
-})
-```
-
-The list of dependencies is required but if other queries are read within the lifetime of a service an implicit dependency is assumed so that in future if that implicit value propagates this effect will run. Note this isn't the case when writing to a query.
-
-This is completely fine as long as you are ok with the first run of this service not reacting to those implicit dependencies.  Note, a service with no dependencies will never run.
-
-A service will not run if the explicit dependencies have undefined values.  This can be one reason to have explicit and implicit dependencies, when some values are required to be defined, and others are not required to be defined, e.g. in loading services.
 
 Promises
 --------

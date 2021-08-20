@@ -1,6 +1,6 @@
 import test from 'tape'
 import Z from './z.js'
-
+import Transaction from './transaction.js'
 
 test('keys', t => {
     
@@ -155,44 +155,6 @@ test('dependencies', t => {
     t.end()
 })
 
-test('simple subscriptions', t => {
-    let z = new Z()
-    
-    let called = { user: 0, users: 0, friend: 0 }
-    
-    z.on([z.state.users], () => called.users++)
-    
-    let user = z.state.users
-        .$values
-        .$filter( (x,y) => x.id == y, [z.state.friend.id] )
-
-    
-    z.on([user], function(){
-        called.user++
-    })
-    t.equals(called.user, 0, 'Subscription not called.user when tree empty')
-    
-    z.state.users = [{ id: 1 }, { id: 2 }, { id: 3 }]
-
-    t.equals(called.user, 0, 'Subscription not called.user when tree empty pt 2')
-    z.state.friend.id = 2
-    z.on([z.state.friend.id], () => called.friend++)
-
-    t.equals(called.user, 1, 'Subscription called.user once all deps are ready')
-
-    z.state.friend.id = 2
-    t.equals(called.user, 1, 'Setting a value to itself does not dispatch a notification')
-
-    let copy = z.state.users()
-    z.state.users = copy
-    t.equals(called.user, 1, 'Setting a value to itself does not dispatch a notification pt2')
-    
-    z.state.friend.id = 3
-    t.equals(called.user, 2, 'Updating a dependency updates the notification')
-
-    t.end()
-})
-
 test('caching dynamics', t => {
     let z = new Z()
     let called = { user: 0 }
@@ -324,4 +286,263 @@ test('iterator support', t => {
     t.equals(out.join('|'), '1|2|3', 'Queries can use for loops')
     t.end()
 })
-// test('deferrable subscriptions')
+
+test('Transactions', async t => {
+    let z = new Z()
+
+    z.state.a = 1
+    let a = new Transaction(z, function * example (z){
+        z.state.a = 2
+    })
+
+    await a.run()
+
+    t.equals(z.state.a(), 2, 'Transaction committed changes to main tree')
+
+    let b = new Transaction(z, function * example (z){
+        z.state.a = 3
+        throw new TypeError('Whatever')
+    })
+
+    await b.run().catch(() => {})
+
+    t.equals(z.state.a(), 2, 'Transaction changes never committed on exception')
+    t.equals(b._state.constructor.name, 'Rollback', 'State is Rollback')
+
+    z.state.b = 2
+    
+    z.service([z.state.b], function * (z2){
+        t.equals(z2.state.a(), 2, 'Before global state change')
+        z.state.a(4)
+        t.equals(z2.state.a(), 4, 'Global state change observable in tx')
+    })
+})
+
+test('simple subscriptions', t => {
+    let z = new Z()
+    
+    let called = { user: 0, users: 0, friend: 0 }
+    
+    z.service([z.state.users], function * (){ called.users++ })
+    
+    let user = z.state.users
+        .$values
+        .$filter( (x,y) => x.id == y, [z.state.friend.id] )
+
+    z.service([user], function * (){
+        called.user++
+    })
+    t.equals(called.user, 0, 'Subscription not called.user when tree empty')
+    
+    z.state.users = [{ id: 1 }, { id: 2 }, { id: 3 }]
+
+    t.equals(called.user, 0, 'Subscription not called.user when tree empty pt 2')
+    z.state.friend.id = 2
+    z.service([z.state.friend.id], function * (){ called.friend++ })
+
+    t.equals(called.user, 1, 'Subscription called.user once all deps are ready')
+
+    z.state.friend.id = 2
+    t.equals(called.user, 1, 'Setting a value to itself does not dispatch a notification')
+
+    let copy = z.state.users()
+    z.state.users = copy
+    t.equals(called.user, 1, 'Setting a value to itself does not dispatch a notification pt2')
+    
+    z.state.friend.id = 3
+    t.equals(called.user, 2, 'Updating a dependency updates the notification')
+
+    t.end()
+})
+
+test('service cancellation (latest)', async t => {
+
+    let z = new Z()
+    
+    let forever = new Promise(function(){})
+    let immediate = Promise.resolve()
+    let promises = [forever, immediate]
+
+    let count = { finally: 0, try: 0, catch: 0, completed: 0 }
+    let err;
+    z.service([z.state.a], function * (z){ 
+        try {
+            count.try++
+            z.state.promisesLength = promises.length
+            yield promises.shift()
+            count.completed++
+        } catch (e) {
+            count.catch++
+            err = e
+        } finally {
+            count.finally++
+        }
+    }, { resolve: 'latest' })
+
+    z.state.a = 1
+    await Promise.resolve()
+    let firstLength = z.state.promisesLength()
+    z.state.a = 2
+
+    await z.drain()
+    let secondLength = z.state.promisesLength()
+
+    t.equal(count.finally, 2, 'Finally always called')
+    t.equals(count.try, 2, 'Service started once per invocation')
+    t.equals(count.catch, 1, 'First was cancelled (1/2)')
+    t.equals(err.constructor.name, 'CancellationError', 'First was cancelled (2/2)')
+    t.equals(count.completed, 1, 'Second service completed')
+    t.equals(firstLength, undefined, 'Cancelled write never merged upstream')
+    t.equals(secondLength, 1, 'Clean exit commit changes to tree')
+
+    t.end()
+})
+
+test('service cancellation (earliest)', async t => {
+
+    let z = new Z()
+    
+    let carryOn;
+    let paused = new Promise(function(Y){ carryOn = Y })
+
+    let count = { finally: 0, try: 0, catch: 0, completed: 0 }
+    let err;
+
+    z.service([z.state.a], function * (z){ 
+        try {
+            count.try++
+            z.state.b = 'hello'
+            yield paused
+            count.completed++
+        } catch (e) {
+            count.catch++
+            err = e
+        } finally {
+            count.finally++
+        }
+    }, { resolve: 'earliest' })
+
+    z.state.a = 1
+    await Promise.resolve()
+    z.state.a = 2
+    await Promise.resolve()
+    
+    let beforeCommit = z.state.b()
+    carryOn(true)
+    await z.drain()
+    await paused
+
+    t.equal(count.finally, 1, 'Finally only called for service that started')
+    t.equals(count.try, 1, 'Subsequent services ignored')
+    t.equals(count.catch, 0, 'Second was ignored (1/2)')
+    t.equals(err, undefined, 'No cancellation error occurred')
+    t.equals(count.completed, 1, 'First service completed')
+    
+    t.equals(beforeCommit, undefined, 'Before commit, b is unset')
+    t.equals(z.state.b(), "hello", 'Clean exit commit changes to tree')
+
+    t.end()
+})
+
+test('service debouncing', async t => {
+    let z = new Z()
+    
+    // here we fake setTimeout/clearTimeout
+    // so we can semi synchronously test debouncing
+    // with having slow tests
+    {
+        let timeouts = {
+            id: 1
+            ,idx: {}
+            ,time: 0
+        }
+    
+        z.setTimeout = function(visitor,ms){
+            let id = timeouts.id++
+            timeouts.idx[id] = { id, time: timeouts.time + ms, visitor }
+            return id
+        }
+        z.clearTimeout = function(id){
+            delete timeouts.idx[id]
+        }
+        
+        z.setTimeout.advance = function(ms){
+            timeouts.time += ms
+    
+            let xs = 
+                Object.values(timeouts.idx)
+                    .filter( x => x.time <= timeouts.time )
+    
+            for(let x of xs){
+                delete timeouts.idx[x.id]
+                x.visitor()
+            }
+        }
+    }
+
+    let carryOn;
+    let paused = new Promise(function(Y){ carryOn = Y })
+
+    let count = { finally: 0, try: 0, catch: 0, completed: 0 }
+    let err;
+
+    z.service([z.state.a], function * (z){ 
+        try {
+            count.try++
+            z.state.b = 'hello'
+            yield paused
+            count.completed++
+        } catch (e) {
+            count.catch++
+            err = e
+        } finally {
+            count.finally++
+        }
+    }, { resolve: { debounce: 50 } })
+
+    z.state.a = 1
+    await Promise.resolve()
+    
+    z.setTimeout.advance(25)
+
+    z.state.a = 2
+    await Promise.resolve()
+
+    z.setTimeout.advance(25)
+
+    z.state.a = 3
+    await Promise.resolve()
+
+    z.setTimeout.advance(25)
+
+    z.state.a = 4
+    await Promise.resolve()
+
+    z.setTimeout.advance(25)
+
+    t.equals(count.try, 1, 'Only the first service was started')
+    t.equals(count.catch, 0, 'The first service isnt cancelled when the debounce hasnt timed out')
+
+    z.setTimeout.advance(25)
+    await Promise.resolve()
+
+    t.equals(count.try, 2, 'The last service is now running, and...')
+    t.equals(count.catch, 1, 'The first service has been cancelled')
+
+    
+    let beforeCommit = z.state.b()
+    carryOn(true)
+    await z.drain()
+    await paused
+
+    t.equal(count.finally, 2, 'Finally invoked for cancellend and finished service')
+    t.equals(count.try, 2, 'Only the first and last service executed')
+    t.equals(count.catch, 1, 'First was cancelled')
+    t.equals(err.constructor.name, 'CancellationError', 'No cancellation error occurred')
+    t.equals(count.completed, 1, 'Final service completed')
+    
+    t.equals(beforeCommit, undefined, 'Before commit, b is unset')
+    t.equals(z.state.b(), "hello", 'Clean exit commit changes to tree')
+
+    t.end()  
+})

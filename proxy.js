@@ -161,7 +161,7 @@ export class Handler {
 			})
 			
 		if (response.updated) {
-			this.lifecycle.onset(handler, response.states)
+			this.lifecycle.onset(handler, response.states, visitor)
 		}
 		return response
 	}
