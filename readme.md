@@ -23,7 +23,7 @@ How does it work?
 -----------------
 
 ```js
-const { state } = Z()
+const { state } = new Z()
 
 // This is a query
 let currentUser = 
