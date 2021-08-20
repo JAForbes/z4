@@ -9,7 +9,7 @@ class Service {
 	constructor(
 		dependencies
 		, visitor
-		, options={ latest: true, delay: 0, debounce: 0 }
+		, options={ resolve: 'latest' }
 		, key
 	) {
 		this.dependencies = dependencies
@@ -60,7 +60,7 @@ export default class Z4 extends Proxy.Lifecycle {
 	service(
 		dependencies=[]
 		, visitor=function * (){}
-		, options={ latest: true }
+		, options={ resolve: 'latest' }
 		, key=`z.service([${dependencies.map( x => x.$path.key )}], ${visitor.toString()})`
 	){
 		if( ! this.services.has(key) ) {
@@ -139,7 +139,10 @@ export default class Z4 extends Proxy.Lifecycle {
 			let t;
 			let key = service.key
 			let existing = this.transactions.get(key)
-			let { debounce=0, preferLatest=true } = service.options
+			let { resolve } = service.options
+
+			let preferLatest = resolve != 'earliest'
+			let debounce = resolve.debounce || 0
 
 			// whether or not to create a new transaction
 			// and if we should cancel the running one

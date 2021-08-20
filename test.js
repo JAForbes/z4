@@ -377,7 +377,7 @@ test('service cancellation (latest)', async t => {
         } finally {
             count.finally++
         }
-    }, { preferLatest: true })
+    }, { resolve: 'latest' })
 
     z.state.a = 1
     await Promise.resolve()
@@ -420,7 +420,7 @@ test('service cancellation (earliest)', async t => {
         } finally {
             count.finally++
         }
-    }, { preferLatest: false })
+    }, { resolve: 'earliest' })
 
     z.state.a = 1
     await Promise.resolve()
@@ -498,7 +498,7 @@ test('service debouncing', async t => {
         } finally {
             count.finally++
         }
-    }, { preferLatest: true, debounce: 50 })
+    }, { resolve: { debounce: 50 } })
 
     z.state.a = 1
     await Promise.resolve()
