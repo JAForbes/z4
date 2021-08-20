@@ -23,7 +23,6 @@ How does it work?
 -----------------
 
 ```js
-// 🚨 Not all implemented yet + API constantly in flux
 const { state } = Z()
 
 // This is a query
@@ -85,8 +84,6 @@ Documentation
 Services
 --------
 
-> 🚨 This isn't implemented yet
-
 You can transform a value with a visitor function just like `stream.map` in other libraries.  In Z4 these transforms are logical and may not run when you expect them too.  So it is important not to rely on them for unrelated side effects like logging, or network requests.
 
 Often in Z4 computations are deferred until they are read, or until there is some idle time that can be used. So placing a log in a call to `.$map`, `.$filter` etc may not run when you expect it too.
@@ -98,9 +95,6 @@ Services are different to queries, they receive values from the tree, they can b
 Services are defined as synchronous or generator functions.  Generator functions allow you to pause the side effect while async services run, or while the state tree propagates.  This pausing solves a common problem in reactive state solutions: infinite loops when writing back to tree in response to a subscription.
 
 Any writes you perform for the duration of a service do not actually get applied to the state tree until the generator exits.  This is very similar to database transactions.  
-
-> 💡 If you want the view to see writes before they are committed you can use `.$optimistic` on any query.
-
 
 ```js
 z.service([z.state.a.b.c], function * effect(z){
