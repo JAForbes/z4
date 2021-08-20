@@ -1,6 +1,4 @@
-Add z.drain to help with async tests.
-
-z.drain will resolve when all transactions running at the time of invocation finish.
+Does debounce make any sense with preferLatest=false?
 
 ---
 

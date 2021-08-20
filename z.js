@@ -16,6 +16,7 @@ class Service {
 		this.visitor = visitor
 		this.options = options
 		this.key = key
+		this.cancellations = new Set()
 	}
 
 	end(){
@@ -138,13 +139,12 @@ export default class Z4 extends Proxy.Lifecycle {
 			let t;
 			let key = service.key
 			let existing = this.transactions.get(key)
-
 			let { debounce=0, preferLatest=true } = service.options
 
 			// whether or not to create a new transaction
 			// and if we should cancel the running one
 			if( preferLatest && existing && !existing.ended ) {
-				existing.cancel()
+				service.cancellations.add(existing)
 				t = new Transaction(this, service.visitor, service.options)
 				this.transactions.set(key, t)
 			} else if( !existing || existing.ended ) {
@@ -158,19 +158,27 @@ export default class Z4 extends Proxy.Lifecycle {
 			if( t.pending ) {
 				// scheduling the new or existing pending
 				// if required
-				if ( debounce > 0 ) {
+				if ( existing && debounce > 0 ) {
 					if( this.timers.has(key)) {
 						let { id } = this.timers.get(key)
 						this.clearTimeout(id)
 					}
 					
 					let id = this.setTimeout(() => {
-						existing.run().catch(() => {})
+						for( let existing of service.cancellations ) {
+							existing.cancel()
+						}
+						service.cancellations.clear()
+						t.run().catch(() => {})
 						this.timers.delete(key)
 					}, debounce)
 	
 					this.timers.set(key, { id, at: Date.now(), ms: debounce })
 				} else {
+					if( existing ) {
+						existing.cancel()
+						service.cancellations.clear()
+					}
 					// otherwise run the new one immediately
 					t.run().catch( () => {} )
 				}

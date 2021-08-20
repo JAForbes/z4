@@ -443,3 +443,106 @@ test('service cancellation (earliest)', async t => {
 
     t.end()
 })
+
+test('service debouncing', async t => {
+    let z = new Z()
+    
+    // here we fake setTimeout/clearTimeout
+    // so we can semi synchronously test debouncing
+    // with having slow tests
+    {
+        let timeouts = {
+            id: 1
+            ,idx: {}
+            ,time: 0
+        }
+    
+        z.setTimeout = function(visitor,ms){
+            let id = timeouts.id++
+            timeouts.idx[id] = { id, time: timeouts.time + ms, visitor }
+            return id
+        }
+        z.clearTimeout = function(id){
+            delete timeouts.idx[id]
+        }
+        
+        z.setTimeout.advance = function(ms){
+            timeouts.time += ms
+    
+            let xs = 
+                Object.values(timeouts.idx)
+                    .filter( x => x.time <= timeouts.time )
+    
+            for(let x of xs){
+                delete timeouts.idx[x.id]
+                x.visitor()
+            }
+        }
+    }
+
+    let carryOn;
+    let paused = new Promise(function(Y){ carryOn = Y })
+
+    let count = { finally: 0, try: 0, catch: 0, completed: 0 }
+    let err;
+
+    z.service([z.state.a], function * (z){ 
+        try {
+            count.try++
+            z.state.b = 'hello'
+            yield paused
+            count.completed++
+        } catch (e) {
+            count.catch++
+            err = e
+        } finally {
+            count.finally++
+        }
+    }, { preferLatest: true, debounce: 50 })
+
+    z.state.a = 1
+    await Promise.resolve()
+    
+    z.setTimeout.advance(25)
+
+    z.state.a = 2
+    await Promise.resolve()
+
+    z.setTimeout.advance(25)
+
+    z.state.a = 3
+    await Promise.resolve()
+
+    z.setTimeout.advance(25)
+
+    z.state.a = 4
+    await Promise.resolve()
+
+    z.setTimeout.advance(25)
+
+    t.equals(count.try, 1, 'Only the first service was started')
+    t.equals(count.catch, 0, 'The first service isnt cancelled when the debounce hasnt timed out')
+
+    z.setTimeout.advance(25)
+    await Promise.resolve()
+
+    t.equals(count.try, 2, 'The last service is now running, and...')
+    t.equals(count.catch, 1, 'The first service has been cancelled')
+
+    
+    let beforeCommit = z.state.b()
+    carryOn(true)
+    await z.drain()
+    await paused
+
+    t.equal(count.finally, 2, 'Finally invoked for cancellend and finished service')
+    t.equals(count.try, 2, 'Only the first and last service executed')
+    t.equals(count.catch, 1, 'First was cancelled')
+    t.equals(err.constructor.name, 'CancellationError', 'No cancellation error occurred')
+    t.equals(count.completed, 1, 'Final service completed')
+    
+    t.equals(beforeCommit, undefined, 'Before commit, b is unset')
+    t.equals(z.state.b(), "hello", 'Clean exit commit changes to tree')
+
+    t.end()  
+})
