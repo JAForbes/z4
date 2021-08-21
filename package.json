@@ -2,7 +2,8 @@
   "name": "z4",
   "version": "0.0.0",
   "description": "Z4 ==",
-  "main": "app.js",
+  "main": "z.js",
+  "module": "z.js",
   "type": "module",
   "dependencies": {
     "@babel/core": "^7.15.0",

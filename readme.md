@@ -36,11 +36,11 @@ let currentUser =
 
 // only writes to the shared tree
 // when the function exits cleanly
-z.transaction([currentUser], async function (){
+z.transaction([currentUser], function * (){
     // z.fetch is optional
     // it just auto cancels requests for you
     // if the transaction throws
-    let { metadata } = await z.fetch('/api/users/' + currentUser.id)
+    let { metadata } = yield z.fetch('/api/users/' + currentUser.id)
 
     currentUser.metadata = metadata
 })
