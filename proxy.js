@@ -10,11 +10,19 @@ export class Handler {
 	proxy=null
 	dependencies=new Set()
 	constructor(
-		path=Path.Path.of(), lifecycle=new Lifecycle(), getRootStates, cache
-	){		this.path = path
+		path=Path.Path.of()
+		, lifecycle=new Lifecycle()
+		, getRootStates
+		, proxyKeyCache
+		, proxyReferenceCache
+		, queryKeyReferences
+	){
+		this.path = path
 		this.lifecycle = lifecycle
 		this.getRootStates = getRootStates
-		this.cache = cache
+		this.proxyKeyCache = proxyKeyCache
+		this.proxyReferenceCache = proxyReferenceCache
+		this.queryKeyReferences = queryKeyReferences
 	}
 
 	get $handler(){
@@ -38,7 +46,9 @@ export class Handler {
 			Path.addParts( this.path, new Path.Traverse() )
 			, this.lifecycle
 			, this.getRootStates
-			, this.cache
+			, this.proxyKeyCache
+			, this.proxyReferenceCache
+			, this.queryKeyReferences
 		)
 		this.dependencies.add(pp)
 		return pp
@@ -49,7 +59,9 @@ export class Handler {
 			Path.addParts( this.path, new Path.Filter(...args) )
 			, this.lifecycle
 			, this.getRootStates
-			, this.cache
+			, this.proxyKeyCache
+			, this.proxyReferenceCache
+			, this.queryKeyReferences
 		)
 		this.dependencies.add(pp)
 		return pp
@@ -60,7 +72,9 @@ export class Handler {
 			Path.addParts( this.path, new Path.Transform(...args) )
 			, this.lifecycle
 			, this.getRootStates
-			, this.cache
+			, this.proxyKeyCache
+			, this.proxyReferenceCache
+			, this.queryKeyReferences
 		)
 		this.dependencies.add(pp)
 		return pp
@@ -112,11 +126,25 @@ export class Handler {
 		return this.valueOf()+''
 	}
 
+	compile(newPath){
+		let pp = PathProxy.of( 
+			newPath
+			, this.lifecycle
+			, this.getRootStates 
+			, this.proxyKeyCache
+			, this.proxyReferenceCache
+			, this.queryKeyReferences
+		)
+
+		this.dependencies.add(pp)
+
+		this.proxyKeyCache[newPath.key] = pp
+		return pp
+	}
+
 	get(_, key){
 
-		if( key in this.cache ) {
-			return this.cache[key]
-		} else if (key == Symbol.iterator) {
+		if (key == Symbol.iterator) {
 			return this[key]
 		} else if(typeof key == 'symbol' ) { 
 			let value = this.valueOf()
@@ -125,7 +153,21 @@ export class Handler {
 			} else {
 				return value[key]
 			}
+		}
+
 			// assumes not empty
+		let completeKey = this.path.parts.map( x => x.key ).concat(key).join('.')
+
+		if( completeKey in this.proxyKeyCache ) {
+			return this.proxyKeyCache[completeKey]
+		} else if ( this.queryKeyReferences.has(completeKey) ){
+			let realPath = this.queryKeyReferences.get(completeKey)
+			
+			if( realPath.key in this.proxyKeyCache ) {
+				return this.proxyKeyCache[realPath.key]
+			} else {
+				return this.compile(realPath)
+			}
 		} else if (
 			key.startsWith('$') 
 			|| key == 'valueOf' 
@@ -133,20 +175,8 @@ export class Handler {
 		) {
 			return this[key]
 		} else {
-
-			
 			let newPath = Path.addParts( this.path, new Path.Property(key))
-			let pp = PathProxy.of( 
-				newPath
-				, this.lifecycle
-				, this.getRootStates 
-				, this.cache
-			)
-
-			this.dependencies.add(pp)
-
-			this.cache[newPath.key] = pp
-			return pp
+			return this.compile(newPath)
 		}
 	}
 
@@ -168,8 +198,14 @@ export class Handler {
 	}
 
 	set(_, key, value){
-		let proxy = this.proxy[key]
-		this.setSelf(_, proxy.$handler, () => value)
+		if ( this.proxyReferenceCache.has(value) ) {
+			let realPath = value.$path
+			let completeKey = [this.path.key, key].filter(Boolean).join('.')
+			this.queryKeyReferences.set(completeKey, realPath)
+		} else {
+			let proxy = this.proxy[key]
+			this.setSelf(_, proxy.$handler, () => value)
+		}
 		return true
 	}
 
@@ -238,18 +274,39 @@ export class PathProxy {
 		this.getRootStates = getRootStates
 	}
 
-	static of(path, lifecycle=new Lifecycle(), getRootStates, proxycache){
+	static of(
+		path
+		, lifecycle=new Lifecycle()
+		, getRootStates
+		, proxyKeyCache
+		, proxyReferenceCache
+		, queryKeyReferences
+	){
 
 		{
 			let x = lifecycle.onbeforecreate({ path })
 			if( x ) return x
 		}
 
-		const handler = new Handler(path, lifecycle, getRootStates, proxycache)
+		const handler = 
+			new Handler(
+				path
+				, lifecycle
+				, getRootStates
+				, proxyKeyCache
+				, proxyReferenceCache
+				, queryKeyReferences
+			)
+
 		const proxy = new Proxy(function(){}, handler)
 		handler.proxy = proxy
 
-		let out = new PathProxy(handler, path, proxy, getRootStates, proxycache)
+		let out = new PathProxy(
+			handler
+			, path
+			, proxy
+			, getRootStates
+		)
 
 		try {
 			return out.proxy

@@ -546,3 +546,70 @@ test('service debouncing', async t => {
 
     t.end()  
 })
+
+
+test('query references', t => {
+    let z = new Z()
+
+    let user = 
+        z.state
+            .users
+            .$values
+            .$filter( (x,y) => y == x.id, [z.state.id])
+
+    z.state.user = user
+
+    z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
+    z.state.id = 2
+
+    t.equals(user.id(), 2, 'Normal query works')
+    t.equals(z.state.user.id(), 2, 'Referenced query works')
+    t.equals(user, z.state.user, 'Both queries have same reference')
+    
+    t.end()
+})
+
+// This will not work until #12 is fixed, but the test itself
+// is fine so I'm just skipping for now
+test('query references within transactions', async t => {
+    let z = new Z()
+
+    let user = 
+        z.state
+            .users
+            .$values
+            .$filter( (x,y) => y == x.id, [z.state.id])
+
+    z.state.user = user
+
+    z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
+    z.state.id = 2
+
+    let fetch = async (url) => {
+        let [,,, id] = url.split('/')
+
+        if(id == 2) {
+            return { metadata: 'yes' }
+        } else {
+            throw new Error(500)
+        }
+    }
+
+    z.service([z.state.user], function * (z){
+
+        let user = z.state.user
+        let id = user.id()
+
+        let { metadata } = yield fetch('/api/users/' + id)
+
+        z.state.user.metadata = metadata
+        
+    })
+
+    await Promise.resolve()
+    await z.drain()
+
+    t.equals( z.state.user.metadata(), 'yes', 'Query reference within transaction worked' )
+
+    t.end()
+})
