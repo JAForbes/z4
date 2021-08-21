@@ -40,7 +40,7 @@ export default class Transaction {
 		// share query references
 		// todo-james but these all reference the wrong state
 		// this.z.proxies = zz.proxies
-		// this.z.queryKeyReferences = zz.queryKeyReferences
+		this.z.queryKeyReferences = zz.queryKeyReferences
 		
 		this.parent = zz
 		this.path = Path.Path.of()

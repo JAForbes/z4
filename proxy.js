@@ -126,13 +126,25 @@ export class Handler {
 		return this.valueOf()+''
 	}
 
+	compile(newPath){
+		let pp = PathProxy.of( 
+			newPath
+			, this.lifecycle
+			, this.getRootStates 
+			, this.proxyKeyCache
+			, this.proxyReferenceCache
+			, this.queryKeyReferences
+		)
+
+		this.dependencies.add(pp)
+
+		this.proxyKeyCache[newPath.key] = pp
+		return pp
+	}
+
 	get(_, key){
 
-		if( key in this.proxyKeyCache ) {
-			return this.proxyKeyCache[key]
-		} else if ( this.queryKeyReferences.has(key) ){
-			return this.queryKeyReferences.get(key)
-		} else if (key == Symbol.iterator) {
+		if (key == Symbol.iterator) {
 			return this[key]
 		} else if(typeof key == 'symbol' ) { 
 			let value = this.valueOf()
@@ -141,7 +153,21 @@ export class Handler {
 			} else {
 				return value[key]
 			}
+		}
+
 			// assumes not empty
+		let completeKey = this.path.parts.map( x => x.key ).concat(key).join('.')
+
+		if( completeKey in this.proxyKeyCache ) {
+			return this.proxyKeyCache[completeKey]
+		} else if ( this.queryKeyReferences.has(completeKey) ){
+			let realPath = this.queryKeyReferences.get(completeKey)
+			
+			if( realPath.key in this.proxyKeyCache ) {
+				return this.proxyKeyCache[realPath.key]
+			} else {
+				return this.compile(realPath)
+			}
 		} else if (
 			key.startsWith('$') 
 			|| key == 'valueOf' 
@@ -149,22 +175,8 @@ export class Handler {
 		) {
 			return this[key]
 		} else {
-
-			
 			let newPath = Path.addParts( this.path, new Path.Property(key))
-			let pp = PathProxy.of( 
-				newPath
-				, this.lifecycle
-				, this.getRootStates 
-				, this.proxyKeyCache
-				, this.proxyReferenceCache
-				, this.queryKeyReferences
-			)
-
-			this.dependencies.add(pp)
-
-			this.proxyKeyCache[newPath.key] = pp
-			return pp
+			return this.compile(newPath)
 		}
 	}
 
@@ -187,8 +199,9 @@ export class Handler {
 
 	set(_, key, value){
 		if ( this.proxyReferenceCache.has(value) ) {
+			let realPath = value.$path
 			let completeKey = [this.path.key, key].filter(Boolean).join('.')
-			this.queryKeyReferences.set(completeKey, value)
+			this.queryKeyReferences.set(completeKey, realPath)
 		} else {
 			let proxy = this.proxy[key]
 			this.setSelf(_, proxy.$handler, () => value)
