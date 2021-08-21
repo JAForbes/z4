@@ -546,3 +546,30 @@ test('service debouncing', async t => {
 
     t.end()  
 })
+
+
+test('query references', t => {
+    let z = new Z()
+
+    let user = 
+        z.state
+            .users
+            .$values
+            .$filter( (x,y) => y == x.id, [z.state.id])
+
+    z.state.user = user
+
+    z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
+    z.state.id = 2
+
+    t.equals(user.id(), 2, 'Normal query works')
+    t.equals(z.state.user.id(), 2, 'Referenced query works')
+    t.equals(user, z.state.user, 'Both queries have same reference')
+    
+    t.end()
+})
+
+test('query references within transactions', t => {
+
+    t.end()
+})

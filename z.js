@@ -33,7 +33,19 @@ export default class Z4 extends Proxy.Lifecycle {
 	cachedSubscriptions = Object.create(null)
 	cachedValues = new Map()
 
+	// a key value idx of all proxies
+	// should be a map
 	proxyCache = Object.create(null)
+	
+	// literal memory references
+	// to all proxies so we can quickly
+	// detect if a value is one of our
+	// proxies
+	proxyReferences = new WeakSet()
+	
+	// when you store a query in the tre
+	// at a given key
+	queryKeyReferences = new Map()
 
 	transactions = new Map()
 	services = new Map()
@@ -52,6 +64,8 @@ export default class Z4 extends Proxy.Lifecycle {
 			, this
 			, () => [state]
 			, this.proxyCache
+			, this.proxyReferences
+			, this.queryKeyReferences
 		)
 	
 		this.hyperscript = Hyperscript(this)
@@ -242,6 +256,7 @@ export default class Z4 extends Proxy.Lifecycle {
 
 		let key = path.key
 		this.proxies[ key ] = proxy
+		this.proxyReferences.add(proxy)
 
 		// if these queries update, tell me about it.
 		let dependencies = new Set()
