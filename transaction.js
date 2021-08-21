@@ -35,12 +35,16 @@ export default class Transaction {
 
 	constructor(zz=new Z4(), visitor=async function(){}){
 
-		this.z = new Z4(zz.state.$$all().map( x => Object.create(x) )[0])
+		this.z = new Z4(
+			zz.state.$$all().map( x => Object.create(x) )[0]
+			, zz.queryKeyReferences
+			, true
+		)
 		
 		// share query references
 		// todo-james but these all reference the wrong state
 		// this.z.proxies = zz.proxies
-		this.z.queryKeyReferences = zz.queryKeyReferences
+
 		
 		this.parent = zz
 		this.path = Path.Path.of()
@@ -115,7 +119,8 @@ export default class Transaction {
 			}
 		}
 
-		return interpret(it.next())
+		let out = interpret(it.next())
+		return out
 	}
 
 	cancel(){
