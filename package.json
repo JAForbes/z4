@@ -22,9 +22,6 @@
     "rollup-plugin-terser": "^7.0.2",
     "tape": "^5.3.1"
   },
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "test": "npx tape test.js"
   },
