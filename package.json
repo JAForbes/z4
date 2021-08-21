@@ -1,6 +1,6 @@
 {
   "name": "z4",
-  "version": "0.0.2",
+  "version": "0.0.0",
   "description": "Client side reactive database",
   "main": "dist/z.umd.min.js",
   "module": "dist/z.esm.min.js",
