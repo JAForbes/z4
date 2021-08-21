@@ -57,6 +57,7 @@ export class Path {
 
 		// skip the setup
 		if ( this.parts.length == 1 ) stack = []
+		let transactionDetected = false
 		
 		while ( nextOp = stack.shift() ) {
 			
@@ -67,8 +68,36 @@ export class Path {
 			} else if ( nextOp instanceof Property ) {
 				parents = states.slice()
 				for( let i = 0; i < states.length; i++ ) {
-					if( typeof states[i][nextOp.key] == 'undefined' && staticRemaining > 0 ) {
+					// we need to be transaction aware here
+					// check if a value is undefined is not enough
+					// we need to check if our own property is undefined
+					// then check if the value is undefined on the prototype
+					// if it exists on the prototype, we need to clone
+					// if it is just undefined, we need to create it
+
+					let ownProp = states[i].hasOwnProperty(nextOp.key)
+					let isUndefined = typeof states[i][nextOp.key] == 'undefined'
+					let notLeaf = staticRemaining > 0
+					if( 
+						isUndefined
+						&& notLeaf 
+					) {
 						states[i][nextOp.key] = {}
+					} else if (
+						!ownProp
+						&& !isUndefined
+						&& notLeaf
+					) {
+						transactionDetected = true
+						let o = states[i][nextOp.key]
+						
+						// eslint-disable-next-line max-depth
+						if( Array.isArray(o) ) {
+							states[i][nextOp.key] = states[i][nextOp.key].map( x => x )
+						} else {
+							// proto clone object
+							states[i][nextOp.key] = Object.create(states[i][nextOp.key])
+						}
 					}
 					// focus on a new state
 					states[i] = states[i][nextOp.key]
@@ -131,6 +160,13 @@ export class Path {
 				for( let i = 0; i < states.length; i++ ) {
 					let plz = visitor(states[i][finalOp.key])
 					if( plz != states[i][finalOp.key] ) {
+						let editingReal = 
+							transactionDetected 
+							&& states[i].__proto__ == Object.prototype
+						if( transactionDetected && editingReal) {
+							states[i] = Object.create(states[i])
+						}
+
 						states[i][finalOp.key] = plz
 						anyChange = true
 						outputStates.push(plz)

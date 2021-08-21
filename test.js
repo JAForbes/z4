@@ -609,7 +609,7 @@ test('query references within transactions', async t => {
     await Promise.resolve()
     await z.drain()
 
-    t.equals( z.state.user.metadata, 'yes', 'Query reference within transaction worked' )
+    t.equals( z.state.user.metadata(), 'yes', 'Query reference within transaction worked' )
 
     t.end()
 })
