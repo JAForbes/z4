@@ -33,7 +33,16 @@ export default class Z4 extends Proxy.Lifecycle {
 	cachedSubscriptions = Object.create(null)
 	cachedValues = new Map()
 
+	// a key value idx of all proxies
+	// should be a map
 	proxyCache = Object.create(null)
+	
+	// literal memory references
+	// to all proxies so we can quickly
+	// detect if a value is one of our
+	// proxies
+	proxyReferences = new WeakSet()
+	
 
 	transactions = new Map()
 	services = new Map()
@@ -42,16 +51,19 @@ export default class Z4 extends Proxy.Lifecycle {
 	clearTimeout = clearTimeout
 	timers = new Map()
 
-	constructor(state={}){
+	constructor(state={}, queryKeyReferences=new Map(), isTransaction=false){
 		super()
 
 		this.path = Path.of()
-
+		this.isTransaction = isTransaction
+		this.queryKeyReferences = queryKeyReferences
 		this.root = Proxy.PathProxy.of(
 			this.path
 			, this
 			, () => [state]
 			, this.proxyCache
+			, this.proxyReferences
+			, this.queryKeyReferences
 		)
 	
 		this.hyperscript = Hyperscript(this)
@@ -242,58 +254,62 @@ export default class Z4 extends Proxy.Lifecycle {
 
 		let key = path.key
 		this.proxies[ key ] = proxy
+		this.proxyReferences.add(proxy)
 
-		// if these queries update, tell me about it.
-		let dependencies = new Set()
+		if( !this.isTransaction ) {
 
-		// take all the dependencies from my parents
-		// by grabbing the dependencies from my parent
-		// if I have dependencies, we'll check theirs as well
-		let search = [
-			...path.prev ? [path.parts.slice(0,-1).join('.')] : []
-			, ...path.dependencies.map( x => x.$path.key )
-		]
-
-		// start with my parents
-		
-		for(let key of search){
-			dependencies.add(key)
-
-			// should always exist
-			if( this.dependencies[key] ) {
-				for( let x of this.dependencies[key]){
-					dependencies.add(x)
-				}
-			}
+			// if these queries update, tell me about it.
+			let dependencies = new Set()
+	
+			// take all the dependencies from my parents
+			// by grabbing the dependencies from my parent
+			// if I have dependencies, we'll check theirs as well
+			let search = [
+				...path.prev ? [path.parts.slice(0,-1).join('.')] : []
+				, ...path.dependencies.map( x => x.$path.key )
+			]
+	
+			// start with my parents
 			
+			for(let key of search){
+				dependencies.add(key)
+	
+				// should always exist
+				if( this.dependencies[key] ) {
+					for( let x of this.dependencies[key]){
+						dependencies.add(x)
+					}
+				}
+				
+			}
+	
+			// did me being created require other dependencies to
+			// be updated, in other words, am I their trigger and they don't know?
+			// to find out, I need to check if any of my children
+			// were referenced by other queries - but wait! that is not possible
+			// you can't access a child query without creating the parent first
+			// and when the child is created and referenced by the other 
+			// query it will find out about me
+			// the only way this can get out of sync is if a proxy is deleted
+	
+			this.dependencies[key] = dependencies
+			// now we know what fields will trigger this field, we can optimize
+			// access for those trigger entry points by inverting the index
+			// as an optimization we can do this while we're looping (later)
+			
+			// ensure all keys have a dependents entry
+			this.dependents[key] = new Set()
+	
+			// invert the index
+			for( let x of dependencies ) {
+				this.dependents[x].add(key)
+			}
+	
+			// now when something writes, we can look who is a dependent
+			// and check if they have any subscriptions as we iterate
+			// this also acts as a simple list of sets to remove ourselves from
+			// when we are deleted
 		}
-
-		// did me being created require other dependencies to
-		// be updated, in other words, am I their trigger and they don't know?
-		// to find out, I need to check if any of my children
-		// were referenced by other queries - but wait! that is not possible
-		// you can't access a child query without creating the parent first
-		// and when the child is created and referenced by the other 
-		// query it will find out about me
-		// the only way this can get out of sync is if a proxy is deleted
-
-		this.dependencies[key] = dependencies
-		// now we know what fields will trigger this field, we can optimize
-		// access for those trigger entry points by inverting the index
-		// as an optimization we can do this while we're looping (later)
-		
-		// ensure all keys have a dependents entry
-		this.dependents[key] = new Set()
-
-		// invert the index
-		for( let x of dependencies ) {
-			this.dependents[x].add(key)
-		}
-
-		// now when something writes, we can look who is a dependent
-		// and check if they have any subscriptions as we iterate
-		// this also acts as a simple list of sets to remove ourselves from
-		// when we are deleted
 	} 
 	
 	onbeforecreate({ path }){
