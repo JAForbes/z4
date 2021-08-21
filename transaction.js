@@ -41,11 +41,6 @@ export default class Transaction {
 			, true
 		)
 		
-		// share query references
-		// todo-james but these all reference the wrong state
-		// this.z.proxies = zz.proxies
-
-		
 		this.parent = zz
 		this.path = Path.Path.of()
 		this._state = new Transaction.state.Pending()
