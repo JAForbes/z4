@@ -571,7 +571,7 @@ test('query references', t => {
 
 // This will not work until #12 is fixed, but the test itself
 // is fine so I'm just skipping for now
-test.skip('query references within transactions', async t => {
+test('query references within transactions', async t => {
     let z = new Z()
 
     let user = 
@@ -609,7 +609,7 @@ test.skip('query references within transactions', async t => {
     await Promise.resolve()
     await z.drain()
 
-    t.equals( z.state.user.metadata, 'yes', 'Query reference within transaction worked' )
+    t.equals( z.state.user.metadata(), 'yes', 'Query reference within transaction worked' )
 
     t.end()
 })
