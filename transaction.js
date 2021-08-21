@@ -1,6 +1,5 @@
 import * as Path from './path.js'
 import * as Proxy from './proxy.js'
-import Z4 from './z.js'
 
 class CancellationError extends Error {}
 

@@ -9,8 +9,9 @@ export class Handler {
 	// set later
 	proxy=null
 	dependencies=new Set()
-	constructor(path=Path.of(), lifecycle=new Lifecycle(), getRootStates, cache){
-		this.path = path
+	constructor(
+		path=Path.Path.of(), lifecycle=new Lifecycle(), getRootStates, cache
+	){		this.path = path
 		this.lifecycle = lifecycle
 		this.getRootStates = getRootStates
 		this.cache = cache
@@ -227,7 +228,7 @@ export class Lifecycle {
 export class PathProxy {
 	constructor(
 		handler=new Handler()
-		, path=Path.of()
+		, path=Path.Path.of()
 		, proxy=new Proxy(function(){})
 		, getRootStates
 	){

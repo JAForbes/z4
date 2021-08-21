@@ -12,8 +12,6 @@ What is it?
 >
 > Needless to say, the API is super in flux, the documentation is incorrect and out of date, and you should not use this in any project yet.
 >
-> To see the current state of the project checkout https://github.com/JAForbes/z4/projects/1
-
 
 Z4 is the next generation of functional UI reactive state.  It takes lessons from streams, lenses and atoms but is ultimately something new.
 
