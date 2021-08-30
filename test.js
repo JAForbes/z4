@@ -641,3 +641,26 @@ test('query references within transactions', async t => {
 
     t.end()
 })
+
+
+test('Cache invalidation for new services', async t => {
+    let z = new Z()
+
+    z.state.a = 2
+
+    let called = 0
+    z.service([z.state.a], function * (z) {
+        try {
+            called++
+        } catch(e){
+            console.error(e)
+        }
+    })
+
+    z.state.a = 3
+
+    await z.drain()
+
+    t.equals(called, 2, 'Called for each change')
+    t.end()
+})

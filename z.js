@@ -75,6 +75,11 @@ export default class Zed extends Proxy.Lifecycle {
 		, options={ resolve: 'latest' }
 		, key=`z.service([${dependencies.map( x => x.$path.key )}], ${visitor.toString()})`
 	){
+		// invalidate subscriptions cache
+		// we can be more careful with invalidation later
+		// @see #8
+		this.cachedSubscriptions = {}
+
 		if( ! this.services.has(key) ) {
 			let service = new Service(dependencies, visitor, options, key)
 			this.services.set(key, service)
