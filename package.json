@@ -1,6 +1,6 @@
 {
   "name": "zed",
-  "version": "1.0.1-next.0",
+  "version": "1.0.1-next.1",
   "description": "Client side reactive database",
   "main": "dist/z.umd.min.js",
   "module": "dist/z.esm.min.js",
