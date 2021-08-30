@@ -38,7 +38,7 @@ export class Handler {
 	}
 
 	get $type(){
-		return 'z4/proxy'
+		return 'z/proxy'
 	}
 
 	get $values(){

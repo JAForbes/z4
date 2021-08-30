@@ -48,13 +48,13 @@ export default [
             ,resolve()
         ]
 
-        const filename = 'z4' + extension
+        const filename = 'z' + extension
 
         const config = {
             plugins: defaultPlugins.concat(plugins)
             ,input
             ,output: {
-                name: format == 'umd' ? 'Z4' : undefined
+                name: format == 'umd' ? 'Z' : undefined
                 ,sourcemap
                 ,format
                 ,file: path.resolve(dir, filename)

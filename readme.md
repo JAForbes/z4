@@ -1,7 +1,7 @@
-<h1 align="center">Z4</h1>
+<h1 align="center">Zed</h1>
 
 <p align="center">
-    <img width="300" align="center" src="z4.svg" />
+    <img width="300" align="center" src="z.svg" />
 </p>
 
 What is it?
@@ -13,9 +13,9 @@ What is it?
 > Needless to say, the API is super in flux, the documentation is incorrect and out of date, and you should not use this in any project yet.
 >
 
-Z4 is the next generation of functional UI reactive state.  It takes lessons from streams, lenses and atoms but is ultimately something new.
+Zed is the next generation of functional UI reactive state.  It takes lessons from streams, lenses and atoms but is ultimately something new.
 
-The biggest difference between Z4 and other approaches is that Z4 behaves a lot more like a client side reactive database that was designed specifically for managing UI state and effects.
+The biggest difference between Zed and other approaches is that Zed behaves a lot more like a client side reactive database that was designed specifically for managing UI state and effects.
 
 How does it work?
 -----------------
@@ -62,7 +62,7 @@ state.users()
 Queries
 -------
 
-Z4 was designed to solve a common problem in web based applications, 100% navigable state transitions.  E.g. you should be able to define the relationships between state using identifiers and relationships before the data arrives.  And as the data arrives, or changes the queries should propagate.
+Zed was designed to solve a common problem in web based applications, 100% navigable state transitions.  E.g. you should be able to define the relationships between state using identifiers and relationships before the data arrives.  And as the data arrives, or changes the queries should propagate.
 
 This allows you to define user interfaces in terms of route state.  If the id in a route changes, the queries are automatically targeting the correct subset of data.  And if the data hasn't arrived yet, services can automatically fetch it.
 
@@ -82,13 +82,13 @@ Documentation
 Services
 --------
 
-You can transform a value with a visitor function just like `stream.map` in other libraries.  In Z4 these transforms are logical and may not run when you expect them too.  So it is important not to rely on them for unrelated side effects like logging, or network requests.
+You can transform a value with a visitor function just like `stream.map` in other libraries.  In Zed these transforms are logical and may not run when you expect them too.  So it is important not to rely on them for unrelated side effects like logging, or network requests.
 
-Often in Z4 computations are deferred until they are read, or until there is some idle time that can be used. So placing a log in a call to `.$map`, `.$filter` etc may not run when you expect it too.
+Often in Zed computations are deferred until they are read, or until there is some idle time that can be used. So placing a log in a call to `.$map`, `.$filter` etc may not run when you expect it too.
 
 If you want to perform some action beyond querying or writing to the tree, you can do so in a a service.
 
-Services are different to queries, they receive values from the tree, they can be paused and resumed, but they are not queries, they do not return a value that can be transformed, they are leaf nodes in the Z4 propagation tree.
+Services are different to queries, they receive values from the tree, they can be paused and resumed, but they are not queries, they do not return a value that can be transformed, they are leaf nodes in the Zed propagation tree.
 
 Services are defined as synchronous or generator functions.  Generator functions allow you to pause the side effect while async services run, or while the state tree propagates.  This pausing solves a common problem in reactive state solutions: infinite loops when writing back to tree in response to a subscription.
 
@@ -118,11 +118,11 @@ z.service([z.state.a.b.c], function * effect(z){
 })
 ```
 
-We use generators instead of async/await because generator execution can be cancelled externally.  This allows Z4 and the user to configure what should happen when the same transaction is initiated twice via two different events concurrently.
+We use generators instead of async/await because generator execution can be cancelled externally.  This allows Zed and the user to configure what should happen when the same transaction is initiated twice via two different events concurrently.
 
 The default behavior would be to abort the existing transaction and start the new one, but there are other desired behaviors such as allowing the existing transaction to complete and throttling new instantiations of the same service by a desired threshold.  It depends if you want the latest value, any value, or all values.
 
-But Z4 will not allow two transactions belonging to the same service to run at the same time.
+But Zed will not allow two transactions belonging to the same service to run at the same time.
 
 ```js
 z.service([z.state.a.b.c], function * (z){
@@ -169,12 +169,12 @@ Setting a query value to a promise will schedule a write to the tree if the prom
 Mutation
 --------
 
-Z4 assumes it is the sole entity directly reading and writing from the state.  As a result, Z4 assumes it can mutate the state tree directly.  This may seem heretical given Z4 claims to be functional and takes inspiration from streams & lenses - but let's take a step back.  Why is mutation ever a problem?  If it is so much faster, why would we avoid it?
+Zed assumes it is the sole entity directly reading and writing from the state.  As a result, Zed assumes it can mutate the state tree directly.  This may seem heretical given Zed claims to be functional and takes inspiration from streams & lenses - but let's take a step back.  Why is mutation ever a problem?  If it is so much faster, why would we avoid it?
 
 Usually, we avoid mutation because it can lead to bugs where some component in a large app is modifying the state in an unpredictable or unwanted way, but it is impossible to trace where the change is coming from, and therefore difficult to resolve the bug.  As all entities in the app have direct access to the same state tree there is no safe guards, tracking, or preventative measures.
 
-With Z4, reads and writes all occur through a proxy.  There are no untracked mutations.  This can be guaranteed in development via `Object.freeze` whenever a non primative value is accessed from a query, but it also so convenient to use Z4 correctly that breaking the rules is more awkward than using it properly.
+With Zed, reads and writes all occur through a proxy.  There are no untracked mutations.  This can be guaranteed in development via `Object.freeze` whenever a non primative value is accessed from a query, but it also so convenient to use Zed correctly that breaking the rules is more awkward than using it properly.
 
-Because Z4 mutates, there is no need to propagate the value of most queries, as they are just lazily accessing the state tree at a given path.  Any dynamic queries are computed on read only if their dependencies reference equality has changed.  This makes the entire system optimized for writes as writing doesn't trigger any state updates.  And because we rely on reference equality when computing dynamic queries we are also optimized for read.
+Because Zed mutates, there is no need to propagate the value of most queries, as they are just lazily accessing the state tree at a given path.  Any dynamic queries are computed on read only if their dependencies reference equality has changed.  This makes the entire system optimized for writes as writing doesn't trigger any state updates.  And because we rely on reference equality when computing dynamic queries we are also optimized for read.
 
-When a state change occurs, Z4 will notify relevant subscriptions, but that is almost all it needs to do.
+When a state change occurs, Zed will notify relevant subscriptions, but that is almost all it needs to do.

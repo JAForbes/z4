@@ -3,7 +3,7 @@
 
 #### Avoid point free code when using visitor functions in queries
 
-Every query in Z4 has a key.  The key is used to determine identity.  It is important therefore to ensure that no two visitor functions accessing the same dependencies have the same toString as these two queries will be treated as one query.  Because Z4 caches the result of read and write query operations, you could see strange behaviour.
+Every query in Zed has a key.  The key is used to determine identity.  It is important therefore to ensure that no two visitor functions accessing the same dependencies have the same toString as these two queries will be treated as one query.  Because Zed caches the result of read and write query operations, you could see strange behaviour.
 
 An example would be using a Ramda function in a query.  Because all Ramda functions are wrapped in `R.curry`, all Ramda functions will share the same `Function::toString`.
 
@@ -31,9 +31,9 @@ z.state.users.$map( R.indexBy(R.prop('id')), [], 'userIdx' )
 
 #### Never access closured queries in a query visitor function
 
-JS closures are fantastic, but Z4 by design avoids implicit dependencies.  If you access a Z4 query from within a visitor function that is not explicitly in the dependency list you may be surprised that your query does not update when the implicit dependency's value changes.
+JS closures are fantastic, but Zed by design avoids implicit dependencies.  If you access a Zed query from within a visitor function that is not explicitly in the dependency list you may be surprised that your query does not update when the implicit dependency's value changes.
 
-It is ok to access closured variables that are not reactive and considered static for the lifetime of the query, but Z4 works best when you store all state on the state tree and reference dependencies explicitly by passing dependencies into the dependency list.
+It is ok to access closured variables that are not reactive and considered static for the lifetime of the query, but Zed works best when you store all state on the state tree and reference dependencies explicitly by passing dependencies into the dependency list.
 
 ```js
 // avoid
@@ -58,7 +58,7 @@ let user =
 
 Z is modelled a lot more like a database with tables and table joins than other UI state management systems.  It is a relational state management library.  Because you can easily create joins there is less of a need to nest data for convenience.  We can just create a query that simulates a nest by joining on the particular id(s).
 
-A shallow state tree makes queries easy to write and consume.  Shallow state also makes it far easier for Z4 to optimize caching and execution of queries.
+A shallow state tree makes queries easy to write and consume.  Shallow state also makes it far easier for Zed to optimize caching and execution of queries.
 
 In browser apps we are used to nesting JS objects to provide easy to related data.  But queries solve this problem in a different way and with greater flexibility as the same data can easily by referenced by completely separate queries.
 
@@ -66,7 +66,7 @@ Finally, Z has to do less work the less the data is nested.  Everytime you dive 
 
 That isn't to say you can't nest your data, you can, and if the situation calls for it, no problem.  But if there was a grain to work with it would be flat data normalized via unique ids.
 
-> 🤓 Why do shallow trees lead to better performance?  Because Z4 can easily know that two distinct parts of the tree are not represented by a particular query that changed.  The moment there is a single dynamic query that is a parent of a leaf node that was written to in the tree, Z4 will have to assume that visitor function could have referenced in child value.
+> 🤓 Why do shallow trees lead to better performance?  Because Zed can easily know that two distinct parts of the tree are not represented by a particular query that changed.  The moment there is a single dynamic query that is a parent of a leaf node that was written to in the tree, Zed will have to assume that visitor function could have referenced in child value.
 
 #### Cache proxy references
 

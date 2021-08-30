@@ -1,5 +1,5 @@
 {
-  "name": "z4",
+  "name": "zed",
   "version": "0.0.1-next.1",
   "description": "Client side reactive database",
   "main": "dist/z.umd.min.js",
@@ -27,12 +27,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/JAForbes/z4.git"
+    "url": "git+https://github.com/JAForbes/zed.git"
   },
   "author": "JAForbes",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/JAForbes/z4/issues"
+    "url": "https://github.com/JAForbes/zed/issues"
   },
-  "homepage": "https://github.com/JAForbes/z4#readme"
+  "homepage": "https://github.com/JAForbes/zed#readme"
 }

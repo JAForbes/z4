@@ -1,6 +1,6 @@
 import * as Path from './path.js'
 import * as Proxy from './proxy.js'
-import Z4 from './z.js'
+import Zed from './z.js'
 
 class CancellationError extends Error {}
 
@@ -33,9 +33,9 @@ export default class Transaction {
 		static Committed = class Committed extends State {}
 	}
 
-	constructor(zz=new Z4(), visitor=async function(){}){
+	constructor(zz=new Zed(), visitor=async function(){}){
 
-		this.z = new Z4(
+		this.z = new Zed(
 			zz.state.$$all().map( x => Object.create(x) )[0]
 			, zz.queryKeyReferences
 			, true

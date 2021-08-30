@@ -1,6 +1,6 @@
-# Z4 vs Streams
+# Zed vs Streams
 
-In many respects, Z4 is designed to replace all conceivable stream usage in a client side application.
+In many respects, Zed is designed to replace all conceivable stream usage in a client side application.
 
 Streams are incredible, I've been a big advocate for a long time, especially in the mithril.js community.
 
@@ -15,20 +15,20 @@ But, they have flaws.  A quick rundown:
     - and therefore hard to diagnose bugs or performance issues.
 - There quickly becomes a problem where you do not know what values should be wrapped, single properties, entire objects, entire state trees?  Each has trade offs, there is no clear path.
 
-Z4 on the other hand:
+Zed on the other hand:
 
-- Z4 state is centralized, there is only 1 source of truth for all queries, and because it is mutable, there is no value propagation.
-- A given Z4 query is stateless, so multiple query instances have no need to be aware of eachother
+- Zed state is centralized, there is only 1 source of truth for all queries, and because it is mutable, there is no value propagation.
+- A given Zed query is stateless, so multiple query instances have no need to be aware of eachother
 - Because side effects occurs in transactions;
     - and because duplicate transactions for the same service are impossible;
     - and because writes prior to a commit are discarded:
     - it is a lot easier to answer who/what/when/how/why questions regarding state changes
 - Every query and service has a human readable name.  This makes debugging much easier.
-- In Z4 the entire state tree is stored as a normal JS object, but you get the experience of convenient wrapped values for individual properties - best of both worlds.
+- In Zed the entire state tree is stored as a normal JS object, but you get the experience of convenient wrapped values for individual properties - best of both worlds.
 
-## But I need to keep using streams with Z4
+## But I need to keep using streams with Zed
 
-Using streams with Z4 is possible.  You can subscribe to a stream and write it back to the Z state tree.  And when the Z state tree occurs, write back to another stream.
+Using streams with Zed is possible.  You can subscribe to a stream and write it back to the Z state tree.  And when the Z state tree occurs, write back to another stream.
 
 ```js
 
@@ -71,7 +71,7 @@ It is recommended when mixing Z with Streams to make streams only the source, or
 
 ## Taking advantage of the fact state is mutable and centralized
 
-Because Z4 state is mutable and centralized, you can do crazy things when trying to interop with other libraries.  For example, using JS getter/setters
+Because Zed state is mutable and centralized, you can do crazy things when trying to interop with other libraries.  For example, using JS getter/setters
 
 Let's revise the above example:
 
@@ -127,8 +127,8 @@ z.state.sum(10)
 
 Z doesn't own the state tree, you do.  But it will only know about changes that occur through its own API.  So use this power wisely.
 
-## Should I remove all streams from my app and just use Z4?
+## Should I remove all streams from my app and just use Zed?
 
-Depending on how often you use streams in your app, it may be challenging to switch cold turkey as the programming model isn't exactly the same.  But Z4 and streams overlap, they solve the same problem.  And if I thought streams were better at solving state management in client side apps, I never would have made Z4.
+Depending on how often you use streams in your app, it may be challenging to switch cold turkey as the programming model isn't exactly the same.  But Zed and streams overlap, they solve the same problem.  And if I thought streams were better at solving state management in client side apps, I never would have made Zed.
 
-My advice would be use the techniques above to migrate to Z4 in stages.  Try to make Z4 the default, but support the old stream API's until you can completely update all consumers.
+My advice would be use the techniques above to migrate to Zed in stages.  Try to make Zed the default, but support the old stream API's until you can completely update all consumers.

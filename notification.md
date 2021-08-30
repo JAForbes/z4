@@ -5,7 +5,7 @@ Notification
 
 When a field is updated, there could be a subscription on that field or other fields that would be affected by said field.
 
-Because Z4 mutates, these other fields do not need to propagate and refresh their values.  But we need to simulate that propagation
+Because Zed mutates, these other fields do not need to propagate and refresh their values.  But we need to simulate that propagation
 to check if there is any notifications that need to occur.
 
 There won't be a lot of notifications, and some are easy to filter out.  So it is probably pretty fast to just iterate through all notifications and early exit.
@@ -55,7 +55,7 @@ If `F` updates a notification on `F`, `E`, `D` and `C` would need to occur
 
 I think when a proxy is created, we check if the `lastPart` has dependencies.  If so, we register it somewhere.  But, what about `F`.  `F` is not a dependency of any queries, but updating `F` will update `D` which is.  So do we cache that?  Do we cache that all parent values of a dependency could trigger another part of the tree?
 
-Maybe it is better to take an OO approach, and copy streams but simply separate the phases.  In streams we recursively traverse the graph of dependencies and evaluate at the same time.  But with Z4 we could recursively traverse the stream graph, but collect a set of keys.  And then loop through that set as a separate phase.
+Maybe it is better to take an OO approach, and copy streams but simply separate the phases.  In streams we recursively traverse the graph of dependencies and evaluate at the same time.  But with Zed we could recursively traverse the stream graph, but collect a set of keys.  And then loop through that set as a separate phase.
 
 We can cache that set when the queries settle, and we can only compute it when a write occurs.
 
@@ -67,7 +67,7 @@ I think Z3 can be instructive here.  A child should inherit the list of triggers
 
 ---
 
-So where in the code is the list of triggers kept?  Is it in the root of Z4 via lifecycle hooks, is it on each Path object?  Is it on the Proxy?  The Meta?
+So where in the code is the list of triggers kept?  Is it in the root of Zed via lifecycle hooks, is it on each Path object?  Is it on the Proxy?  The Meta?
 
 Centrally we have full access to all proxies.  So we can convert paths into proxies and ask subsequent questions.  The Path object has access to its own dependencies and path segments preceding it, but it doesn't have full awareness or access to the proxies themselves.
 
