@@ -114,24 +114,28 @@ export default class Z4 extends Proxy.Lifecycle {
 	 */
 	notifications(key){
 
-		// 1. Get list of dependencies
-		// 2. Add to that list
-		if( key in this.cachedSubscriptions ) return this.cachedSubscriptions[key]
-		let subs = new Set()
-		let xs = [key, ...this.dependents[key]]
-		for(let dep of xs){
-			if (!(dep in this.subscriptions)) continue;
-			
-			outer: for(let sub of this.subscriptions[dep]){
-				for(let dep of sub.dependencies){
-					if( dep() == undefined ) break outer;
+		if( this.isTransaction || !(key in this.dependents)) {
+			return new Set()
+		} else {
+			// 1. Get list of dependencies
+			// 2. Add to that list
+			if( key in this.cachedSubscriptions ) return this.cachedSubscriptions[key]
+			let subs = new Set()
+			let xs = [key, ...this.dependents[key]]
+			for(let dep of xs){
+				if (!(dep in this.subscriptions)) continue;
+				
+				outer: for(let sub of this.subscriptions[dep]){
+					for(let dep of sub.dependencies){
+						if( dep() == undefined ) break outer;
+					}
+					subs.add(sub)
 				}
-				subs.add(sub)
 			}
+	
+			this.cachedSubscriptions[key] = subs
+			return subs
 		}
-
-		this.cachedSubscriptions[key] = subs
-		return subs
 	}
 	
 	clearValueCache(){
