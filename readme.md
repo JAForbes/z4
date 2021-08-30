@@ -1,7 +1,7 @@
 <h1 align="center">Zed</h1>
 
 <p align="center">
-    <img width="300" align="center" src="z.svg" />
+    <img width="300" align="center" src="z4.svg" />
 </p>
 
 What is it?
