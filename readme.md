@@ -23,20 +23,21 @@ How does it work?
 -----------------
 
 ```js
-const { state } = new Z()
+const z = new Z()
+const { state } = z
 
 // This is a query
 let currentUser = 
     state.users
         .$values
         .$filter( 
-            (x, route) => x.id == route.user_id
+            (x, route) => x.id == route.id
             , [state.route]
         )
 
 // only writes to the shared tree
 // when the function exits cleanly
-z.transaction([currentUser], function * (){
+z.service([currentUser], function * (){
     // z.fetch is optional
     // it just auto cancels requests for you
     // if the transaction throws
@@ -52,14 +53,14 @@ state.users = [{ id: 1, name: 'Joe' }, { id: 2, name: 'James' }]
 currentUser.name()
 // 'James'
 
-🐰🎩
+// 🐰🎩
 currentUser.name = 'Barney'
 
-state.users()
-[{ id: 1, name: 'Joe' }, { id: 2, name: 'Barney' }]
-
-
+state.users();
+// [{ id: 1, name: 'Joe' }, { id: 2, name: 'Barney' }]
 ```
+
+[View Demo](https://flems.io/#0=N4IgZglgNgpgziAXAbVAOwIYFsZJAOgAsAXLKEAGhAGMB7NYmBvEAXwvW10QICsEqdBk2J4hcYgAIAXpIC8ktDADukgFoAKAJQAdNOKnBJEjI0mt5MvXoD0NyQBVCEOJJeSMkgI4BXGACcATz1YKWoff38RAFU4AMs9SSTjYlMYfB84-zhE5Lz8ABIANwwoPxy0PPyCyChGfw1JXKqqjQAPCkl-Wh9GLXkAPkk2-AgAE3kFbt708eaW5M7kE0Z8acYAXXm83TRbe3ooQMllfwhGV2JaSWJCGGNCDCiJ4iiYfZO7ytv7sB99YgQeiSGBtc6uaiwDBoI56aT4LJFCDUGAaZDhSIxLIbTp-AFAyoAKkk2mA8zsMnwYBgxGohDcrloAAdAfRSuT7OdJLxMlIML1rtRoSioK4or54MRXGBaP5JIEehy3GAbncbv5oXAMNRWd9CN1lBU8qFJEYcKkxqZPBYFIEIDAoBN4dTaYQNAByGwYJkQGyZAJwGzuyQAakkGKiDFiAVGY128wjWJj5owltSlhTaYwelY8bQK3S61mE0sACZrPnUqt-dlLKg3GNEJIAIydTA4JvugBStBgwfYpobTdLba4na7XDg-a2e30EUjxGj-nw7dRuwp3cn7orFMAvBuABh3ADwbgEr9vSJqNZFdcSzugBCTyUgW3s4LGSycG0AG4PvXxk3W4oY6SN2vb9p0Rh-pII6AR2wH3v4j7TnolA0LQWA+rA-hIGgPhQFAVBxLAOoEggPAAAyIGRAC0ADMACslFsBwICrng+DUHAAiocIzA8GwOIgFAEBoAA1qRqAsVweDwj4WBjPgWDCfg-AoRE5A8CQxBMnAiB2P8TIiQA5uxaE2NIMBjAAAs2+BkfgzZUUobTEPgNE2GMLjEGZGRyQpSkqVQxCBEy3AgHA1BnCy-GsEAA)
 
 Queries
 -------
