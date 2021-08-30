@@ -25,7 +25,7 @@
   "scripts": {
     "test": "npx tape test.js",
     "build": "rollup -c",
-    "prepublishOnly": "build",
+    "prepublishOnly": "npm run build",
     "prerelease": "npm version prerelease --preid=next && git push & git push --tags && npm publish --tag next"
   },
   "repository": {
