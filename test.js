@@ -2,6 +2,15 @@ import test from 'tape'
 import Z from './z.js'
 import Transaction from './transaction.js'
 
+let Paused = () => {
+    let paused; 
+    let resume;
+    paused = new Promise(function(Y){ resume = Y })
+    paused.resume = resume
+    
+    return paused
+}
+
 test('keys', t => {
     
     let z = new Z()
@@ -316,6 +325,10 @@ test('Transactions', async t => {
         z.state.a(4)
         t.equals(z2.state.a(), 4, 'Global state change observable in tx')
     })
+
+    await Promise.resolve()
+
+    t.end()
 })
 
 test('simple subscriptions', t => {
@@ -402,8 +415,8 @@ test('service cancellation (earliest)', async t => {
 
     let z = new Z()
     
-    let carryOn;
-    let paused = new Promise(function(Y){ carryOn = Y })
+
+    let paused = Paused()
 
     let count = { finally: 0, try: 0, catch: 0, completed: 0 }
     let err;
@@ -428,7 +441,7 @@ test('service cancellation (earliest)', async t => {
     await Promise.resolve()
     
     let beforeCommit = z.state.b()
-    carryOn(true)
+    paused.resume(true)
     await z.drain()
     await paused
 
@@ -480,8 +493,7 @@ test('service debouncing', async t => {
         }
     }
 
-    let carryOn;
-    let paused = new Promise(function(Y){ carryOn = Y })
+    let paused = Paused()
 
     let count = { finally: 0, try: 0, catch: 0, completed: 0 }
     let err;
@@ -531,7 +543,7 @@ test('service debouncing', async t => {
 
     
     let beforeCommit = z.state.b()
-    carryOn(true)
+    paused.resume(true)
     await z.drain()
     await paused
 
@@ -584,6 +596,7 @@ test('query references within transactions', async t => {
 
     z.state.users = [{ id: 1}, {id: 2}, {id: 3}]
     z.state.id = 2
+    z.state.user.deletable = true
 
     let fetch = async (url) => {
         let [,,, id] = url.split('/')
@@ -595,21 +608,36 @@ test('query references within transactions', async t => {
         }
     }
 
+    let paused = Paused()
+
     z.service([z.state.user], function * (z){
-
-        let user = z.state.user
-        let id = user.id()
-
-        let { metadata } = yield fetch('/api/users/' + id)
-
-        z.state.user.metadata = metadata
-        
+        try {
+            let user = z.state.user
+            let id = user.id()
+    
+            let { metadata } = yield fetch('/api/users/' + id)
+    
+            z.state.user.metadata = metadata
+            global.active = true
+            delete z.state.user.deletable
+            global.active = false
+            yield paused
+        } catch (e) {
+            console.error(e)
+        }
     })
 
     await Promise.resolve()
+
+    t.equals( z.state.user.deletable(), true, 'Delete ignored prior to commit' )
+    t.equals( z.state.user.metadata(), undefined, 'Write ignored prior to commit' )
+    
+    paused.resume()
+    
     await z.drain()
 
-    t.equals( z.state.user.metadata(), 'yes', 'Query reference within transaction worked' )
+    t.equals( z.state.user.deletable(), undefined, 'Query ref delete wihin transaction worked' )
+    t.equals( z.state.user.metadata(), 'yes', 'Query ref set within transaction worked' )
 
     t.end()
 })

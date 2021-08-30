@@ -337,13 +337,13 @@ export class Path {
 		// the root has no parent
 		let parents = []
 		let lastPropertyKey;
-
+		let transactionDetected = false
 		// skip the setup
 		if ( this.parts.length == 1 ) stack = []
 		
 		outer: while ( nextOp = stack.shift() ) {
 			
-			inner: if( nextOp instanceof Root) {
+			if( nextOp instanceof Root) {
 				parents = states.slice()
 			} else if ( nextOp instanceof Property ) {
 				parents = states.slice()
@@ -354,6 +354,10 @@ export class Path {
 						// but even the parent path doesn't exist
 						// so job done
 						return true;
+					}
+
+					if(states[i].__proto__ != Object.prototype){
+						transactionDetected = true
 					}
 
 					// focus on a new state
@@ -379,6 +383,10 @@ export class Path {
 					// eslint-disable-next-line max-depth
 					for( let j = 0; j < states[i].length; j++ ) {
 						let x = states[i][j]
+						// eslint-disable-next-line max-depth
+						if(x.__proto__ != Object.prototype){
+							transactionDetected = true
+						}
 						newParents.push( states[i] )
 						newStates.push(x)
 					}
@@ -418,7 +426,23 @@ export class Path {
 				return true
 			} else if ( finalOp instanceof Property ) {
 				for( let i = 0; i < states.length; i++ ) {
-					delete states[i][finalOp.key]
+
+					for( let i = 0; i < states.length; i++ ) {
+						
+						if ( !(finalOp.key in states[i]) ) continue;
+						
+						let editingReal = 
+							transactionDetected 
+							&& states[i].__proto__ == Object.prototype
+
+						if( transactionDetected && editingReal) {
+							states[i] = Object.create(states[i])
+						}
+
+						delete states[i][finalOp.key]
+					}
+					
+					
 				}
 				return true
 			} else if ( finalOp instanceof Transform ) {
@@ -472,16 +496,30 @@ export class Path {
 	
 						let match = finalOp.visitor(states[i], ...deps)
 						if( !match ) continue;
+
+						 
+						
 						if( Array.isArray(parents[i]) ) {
 							if(!parentOffset.has( parents[i] )){
 								parentOffset.set(parents[i], 0)
 							}
 							let offset = parentOffset.get(parents[i])
 							let j = parents[i].indexOf( states[i] )
+							if( transactionDetected ) {
+								parents[i] = parents[i].slice()
+							}
 							parents[i].splice(j-offset, 1)
 							offset++
 							parentOffset.set(parents[i], offset)
 						} else if (lastPropertyKey) {
+
+							let editingReal = 
+								transactionDetected 
+								&& states[i].__proto__ == Object.prototype
+
+							if( transactionDetected && editingReal) {
+								parents[i] = Object.create(parents[i])
+							}
 							// e.g. deleting a filter with no $values
 							// means, only action this property delete
 							// if the predicate passes
@@ -497,6 +535,10 @@ export class Path {
 					for( let i = 0; i < states.slice().length; i++ ) {
 
 						let match = finalOp.visitor(states[i], ...deps)
+
+						if( transactionDetected ) {
+							states = states.slice()
+						}
 
 						if( match ) {
 							states.splice(i-offset, 1)
