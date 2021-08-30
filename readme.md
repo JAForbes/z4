@@ -12,6 +12,8 @@ What is it?
 >
 > Needless to say, the API is super in flux, the documentation is incorrect and out of date, and you should not use this in any project yet.
 >
+> The only reason this package is semver major is due to the name being transferred over.  Despite the semver major version you should consider this alpha software.
+>
 
 Zed is the next generation of functional UI reactive state.  It takes lessons from streams, lenses and atoms but is ultimately something new.
 
