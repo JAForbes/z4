@@ -17,7 +17,7 @@ export default function Hyperscript(z){
         for( let i =0; i< children.length; i++ ) {
           let child = children[i]
           if ( !child) continue;
-          if (child['$type'] == 'z4/proxy') {
+          if (child['$type'] == 'z/proxy') {
             children[i] = 
               h( Component, { key: child.$.path.key, proxy: child, z })
           }

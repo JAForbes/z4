@@ -1,22 +1,22 @@
 # API
 
-## Z4 -> Z4Instance
+## Zed -> ZedInstance
 
-`new Z4<T>({ state::T })`
+`new Zed<T>({ state::T })`
 
 ### `.state`
 
-`z4.state()`
+`z.state()`
 
 The root Query proxy.
 
 ### `.end`
 
-`z4.end()`
+`z.end()`
 
 Ends all services, subscriptions, transactions and ignores future writes.  Does not affect internal state or reads in case asynchronous component tear down is still occuring.
 
-After calling end, Z4 should automatically be garbage collected by the JS engine because there is no direct references to any state internally.
+After calling end, Zed should automatically be garbage collected by the JS engine because there is no direct references to any state internally.
 
 ## Query
 
@@ -78,15 +78,15 @@ Creates a read only query that transforms state using the user provided visitor 
 
 ### `z.service`
 
-`z.service(Query[], *( z::Z4 ) -> void, options? ) -> ServiceInstance`
+`z.service(Query[], *( z::Zed ) -> void, options? ) -> ServiceInstance`
 
 ### `options`
 
 #### `options.resolve`
 
-In Z4, there can only be 1 transaction per service running at a time.  This means if a query dependency emits a new value while an existing service is already running Z4 needs to resolve that conflict by either, debouncing new invocations, cancelling the existing transaction, or ignoring all new transactions until the current one exits cleanly.
+In Zed, there can only be 1 transaction per service running at a time.  This means if a query dependency emits a new value while an existing service is already running Zed needs to resolve that conflict by either, debouncing new invocations, cancelling the existing transaction, or ignoring all new transactions until the current one exits cleanly.
 
-By default Z4 cancels existing transactions and starts a new transaction.
+By default Zed cancels existing transactions and starts a new transaction.
 
 
 ```js

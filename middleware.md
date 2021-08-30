@@ -6,7 +6,7 @@
 > A key reason I really want this, is not just cancellation, but it would very well with client side composable SQL fragments.
 > By default SQL fragments are just objects with escaped text and values, but when yielded, they execute.  That is a compelling enough UX to justify the feature I think.
 
-Middleware allows your transactions to completely yield control to Z4 for execution.  This is beneficial as requests can be individually tracked, cached and cancelled in sequence and harmony with Z4's transaction execution flow.
+Middleware allows your transactions to completely yield control to Zed for execution.  This is beneficial as requests can be individually tracked, cached and cancelled in sequence and harmony with Zed's transaction execution flow.
 
 This is completely optional, as ZX transactions supports native promise returning functions.  But the benefit of modelling effects as data is often greater performance, less data transfer, better and faster end to end testing and lower memory overhead.
 

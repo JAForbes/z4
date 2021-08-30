@@ -10,7 +10,7 @@ export class Handler {
 	proxy=null
 	dependencies=new Set()
 	constructor(
-		path=Path.of()
+		path=Path.Path.of()
 		, lifecycle=new Lifecycle()
 		, getRootStates
 		, proxyKeyCache
@@ -38,7 +38,7 @@ export class Handler {
 	}
 
 	get $type(){
-		return 'z4/proxy'
+		return 'z/proxy'
 	}
 
 	get $values(){
@@ -264,7 +264,7 @@ export class Lifecycle {
 export class PathProxy {
 	constructor(
 		handler=new Handler()
-		, path=Path.of()
+		, path=Path.Path.of()
 		, proxy=new Proxy(function(){})
 		, getRootStates
 	){

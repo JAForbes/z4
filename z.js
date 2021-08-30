@@ -24,7 +24,7 @@ class Service {
 	}
 }
 
-export default class Z4 extends Proxy.Lifecycle {
+export default class Zed extends Proxy.Lifecycle {
 	subscriptions = Object.create(null)
 	proxies = Object.create(null)
 	dependencies = Object.create(null)

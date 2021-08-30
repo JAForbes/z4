@@ -1,6 +1,6 @@
 # Goals
 
-There are some goals I wanted to hit when writing Z4, and explains some of the reasons I've worked on this for so long instead of using other available options.
+There are some goals I wanted to hit when writing Zed, and explains some of the reasons I've worked on this for so long instead of using other available options.
 
 ## Cached queries
 
